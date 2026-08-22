@@ -1,0 +1,28 @@
+name: Daily scan
+
+on:
+  schedule:
+    # 21:15 UTC = sekitar 30 menit setelah market US tutup (16:00 ET / 20:00 UTC saat EDT).
+    # Cuma jalan Senin-Jumat. Sesuaikan jam kalau perlu (cron pakai UTC, bukan WIB).
+    - cron: "15 21 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Run scan
+        working-directory: scripts
+        run: node scan.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
