@@ -2,6 +2,7 @@ import admin from "firebase-admin";
 import { fetchDaily, sma, lastClose, pctReturn, clamp } from "./lib/yahoo.js";
 import { fetchSp500 } from "./lib/sp500.js";
 import { getInsiderSignal } from "./lib/secEdgar.js";
+import { getEarningsSignal } from "./lib/earnings.js";
 
 // ---------- Firebase Admin init ----------
 if (!admin.apps.length) {
@@ -158,18 +159,26 @@ async function main() {
     return { ...s, insiderLabel: insider.label, insiderScore: insider.score };
   }, 5, 300);
 
+  console.log("Ambil sinyal earnings & revisi analis (Yahoo)...");
+  const withEarnings = await mapWithConcurrency(withInsider.filter(Boolean), async (s) => {
+    const earnings = await getEarningsSignal(s.ticker);
+    return { ...s, earningsLabel: earnings.label, earningsScore: earnings.score };
+  }, 8, 200);
+
   // ---------- Composite score ----------
   console.log("Hitung composite score...");
-  const finalStocks = withInsider.filter(Boolean).map(s => {
+  const finalStocks = withEarnings.filter(Boolean).map(s => {
     const sectorScore = sectorScoreByEtf[s.etf] ?? 50;
     const volScore = volumeScore(s.volRatio);
-    // bobot digeser ke RS 5-hari (momentum baru) + insider (leading signal),
-    // RS 1-bulan cuma dipakai buat konfirmasi tren masih hidup, bukan driver utama.
+    // stock signal sekarang 4 komponen: RS 5-hari (momentum baru), RS 1-bulan (konfirmasi),
+    // volume, insider (leading), earnings/revisi analis (leading juga - EPS beat & revisi naik
+    // biasanya duluan sebelum harga nyusul).
     const stockScore = Math.round(
-      (s.rs5dScoreInSector ?? 50) * 0.30 +
-      (s.rs1mScoreInSector ?? 50) * 0.15 +
-      volScore * 0.25 +
-      s.insiderScore * 0.30
+      (s.rs5dScoreInSector ?? 50) * 0.25 +
+      (s.rs1mScoreInSector ?? 50) * 0.10 +
+      volScore * 0.20 +
+      s.insiderScore * 0.25 +
+      s.earningsScore * 0.20
     );
     let compositeScore = clamp(Math.round(
       marketScore * 0.15 + sectorScore * 0.25 + (s.industryScore ?? 50) * 0.15 + stockScore * 0.45
@@ -188,6 +197,7 @@ async function main() {
       rs5d: s.rs5d != null ? `${s.rs5d.toFixed(1)}%` : "-",
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
       insider: s.insiderLabel,
+      earnings: s.earningsLabel,
       compositeScore
     };
   });
@@ -208,6 +218,7 @@ async function main() {
         rs5d: s.rs5d,
         volume: s.volume,
         insider: s.insider,
+        earnings: s.earnings,
         compositeScore: s.compositeScore
       });
     });
