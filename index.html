@@ -404,6 +404,7 @@ footer { text-align: center; color: var(--text-muted); font-size: 11px; font-fam
 <div class="modal-overlay" id="watchlistModal" hidden>
   <div class="modal-card">
     <div class="modal-title" id="watchlistModalTitle">Tambah ke watchlist</div>
+    <div class="modal-label" id="watchlistPriceRef"></div>
     <label class="modal-label">Entry zone</label>
     <input type="text" id="watchlistEntryZone" placeholder="misal: 150-155">
     <label class="modal-label">Catatan</label>
@@ -580,13 +581,15 @@ function updateWatchButtons() {
   });
 }
 
-function openWatchlistModal(ticker, name, sector, score) {
+function openWatchlistModal(ticker, name, sector, score, price) {
   currentWatchlistTicker = ticker;
-  watchlistModalMeta = { name, sector, score };
+  watchlistModalMeta = { name, sector, score, price };
   const existing = watchlistCache[ticker];
   document.getElementById("watchlistModalTitle").textContent = existing ? `Edit ${ticker}` : `Tambah ${ticker} ke watchlist`;
   document.getElementById("watchlistEntryZone").value = existing?.entryZone || "";
   document.getElementById("watchlistNotes").value = existing?.notes || "";
+  const priceRef = existing?.priceAtAdd || price;
+  document.getElementById("watchlistPriceRef").textContent = priceRef ? `Harga saat ini: ${priceRef}` : "";
   document.getElementById("watchlistModal").hidden = false;
 }
 
@@ -613,6 +616,7 @@ document.getElementById("watchlistSaveBtn").addEventListener("click", async () =
     notes,
     status: existing?.status || "watching",
     addedDate: existing?.addedDate || new Date().toISOString().slice(0, 10),
+    priceAtAdd: existing?.priceAtAdd || watchlistModalMeta?.price || null,
     compositeScoreAtAdd: existing?.compositeScoreAtAdd ?? (watchlistModalMeta?.score ? Number(watchlistModalMeta.score) : null)
   };
   try {
@@ -654,6 +658,7 @@ function renderWatchlistPanel() {
           <button class="remove-btn" data-ticker="${ticker}" aria-label="Hapus dari watchlist">&times;</button>
         </div>
         <div class="watchlist-meta">${w.name ?? ""}${w.name ? " \u00b7 " : ""}${w.sector ?? ""}${days !== null ? ` \u00b7 ${days} hari lalu` : ""}</div>
+        ${w.priceAtAdd ? `<div class="watchlist-meta">Harga saat masuk: ${w.priceAtAdd}</div>` : ""}
         ${w.entryZone ? `<div class="watchlist-meta">Entry: ${w.entryZone}</div>` : ""}
         ${w.notes ? `<div class="watchlist-notes">${w.notes}</div>` : ""}
       </div>`;
@@ -732,9 +737,9 @@ async function loadDashboard() {
           <div class="stock-row-top">
             <span class="stock-row-ticker">${ticker}</span>
             ${phaseBadgeHTML(s.phase)}
-            <button class="watch-toggle-btn ${inWatchlist ? "in-watchlist" : ""}" data-ticker="${ticker}" data-name="${escapeAttr(s.name)}" data-sector="${escapeAttr(s.sector)}" data-score="${s.compositeScore ?? ""}" aria-label="Tambah ke watchlist">${inWatchlist ? "\u2713" : "+"}</button>
+            <button class="watch-toggle-btn ${inWatchlist ? "in-watchlist" : ""}" data-ticker="${ticker}" data-name="${escapeAttr(s.name)}" data-sector="${escapeAttr(s.sector)}" data-score="${s.compositeScore ?? ""}" data-price="${escapeAttr(s.price)}" aria-label="Tambah ke watchlist">${inWatchlist ? "\u2713" : "+"}</button>
           </div>
-          <div class="stock-row-name">${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
+          <div class="stock-row-name">${s.price ?? ""}${s.price ? " \u00b7 " : ""}${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
           <div class="stock-row-bottom">
             <div class="stock-row-metrics">
               <span><span class="metric-label">RS5d</span>${s.rs5d ?? "-"}</span>
@@ -751,7 +756,7 @@ async function loadDashboard() {
       listEl.querySelectorAll(".watch-toggle-btn").forEach(btn => {
         btn.addEventListener("click", (e) => {
           const b = e.currentTarget;
-          openWatchlistModal(b.getAttribute("data-ticker"), b.getAttribute("data-name"), b.getAttribute("data-sector"), b.getAttribute("data-score"));
+          openWatchlistModal(b.getAttribute("data-ticker"), b.getAttribute("data-name"), b.getAttribute("data-sector"), b.getAttribute("data-score"), b.getAttribute("data-price"));
         });
       });
     }
