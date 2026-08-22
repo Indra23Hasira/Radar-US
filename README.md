@@ -88,6 +88,15 @@ Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada
 - [x] Earnings/revision momentum (EPS surprise + revisi analis 30 hari, Yahoo Finance quoteSummary)
 - [x] Watchlist & episode tracking di UI (klik "+" di stock ranking, isi entry zone/catatan, status watching/entered/closed)
 - [x] Historical tracking (badge trend score vs 3 scan sebelumnya, di /meta/scanDates)
+- [x] Backtest (win rate & avg return per fase, holding period 5 hari trading, jalan mingguan)
 - [ ] Notifikasi harian (belum - kandidat: Telegram bot, paling gampang setup-nya)
+
+## Backtest
+
+`scripts/backtest.js` ngukur: dari saham-saham yang pernah masuk top 20 di masa lalu, berapa return-nya N hari trading kemudian (default 5 hari), dipecah by fase (Early/Building/Extended/dst). Ini yang jawab pertanyaan "apakah sistem klasifikasi fase kita beneran valid" - kalau Early konsisten menang dibanding Extended, berarti logikanya kerja.
+
+Jalan **mingguan otomatis** (`.github/workflows/backtest.yml`, tiap Minggu) - gak perlu tiap hari karena butuh histori yang udah "matang" (minimal 5 hari kerja lewat dari tanggal deteksi). Bisa juga trigger manual dari tab Actions. Hasilnya kesimpen di `/backtest/latest` dan muncul di dashboard sebagai panel baru.
+
+Butuh histori scan minimal beberapa hari dulu sebelum ada hasil - kalau dijalanin pas data masih baru, dia cuma kasih pesan "belum cukup histori", itu normal.
 
 **Catatan soal modul earnings:** endpoint `quoteSummary` yang dipakai (`scripts/lib/earnings.js`) kadang lebih ketat aksesnya dibanding endpoint harga (`chart`) yang dipakai modul lain. Kalau abis run pertama kolom "Earnings" kosong ("-") buat SEMUA saham (bukan cuma sebagian), kemungkinan Yahoo minta autentikasi tambahan buat endpoint ini - cek log run di GitHub Actions buat pastiin. Kalau itu kejadian, skor-nya otomatis fallback ke netral (50) jadi gak bikin scan lain ikut gagal, tapi berarti perlu dicari sumber data alternatif.
