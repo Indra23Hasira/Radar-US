@@ -10,6 +10,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +22,14 @@ jobs:
         working-directory: scripts
         run: npm install
 
-      - name: Run scan
+      - name: Run market regime + sector rotation scan
         working-directory: scripts
         run: node scan.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+
+      - name: Run stock-level scan (RS, industry, volume, insider)
+        working-directory: scripts
+        run: node stockScan.js
         env:
           FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
