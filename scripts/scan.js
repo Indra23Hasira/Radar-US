@@ -109,8 +109,11 @@ async function main() {
   });
   await batch.commit();
 
-  // /meta/latest
+  // /meta/latest + /meta/scanDates (buat historical tracking - dashboard butuh tau tanggal2 scan sebelumnya)
   await db.collection("meta").doc("latest").set({ date });
+  await db.collection("meta").doc("scanDates").set({
+    dates: admin.firestore.FieldValue.arrayUnion(date)
+  }, { merge: true });
 
   console.log(`Selesai. Market score: ${marketScore}, breadth: ${breadth}%`);
   console.log("Sector ranking:", sectorResults.map(r => `${r.rank}. ${r.etf} (${r.rs1m}%)`).join(", "));
