@@ -1,0 +1,28 @@
+name: Backtest
+
+on:
+  schedule:
+    # tiap Minggu jam 12:00 UTC - gak perlu tiap hari, backtest ngukur histori yang udah lewat
+    - cron: "0 12 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Run backtest
+        working-directory: scripts
+        run: node backtest.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
