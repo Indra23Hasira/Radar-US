@@ -7,9 +7,10 @@ export async function fetchDaily(symbol, range = "1y") {
   const result = json.chart?.result?.[0];
   if (!result) throw new Error(`Data kosong buat ${symbol}`);
   const closes = result.indicators.quote[0].close;
+  const volumes = result.indicators.quote[0].volume;
   const timestamps = result.timestamp;
   return timestamps
-    .map((t, i) => ({ t, close: closes[i] }))
+    .map((t, i) => ({ t, close: closes[i], volume: volumes ? volumes[i] : null }))
     .filter(d => d.close !== null && d.close !== undefined);
 }
 
