@@ -183,6 +183,95 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .stock-row-score { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 90px; }
 .stock-row-score .score-bar { min-width: 50px; }
 
+.watch-toggle-btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.watch-toggle-btn:hover { border-color: var(--accent); }
+.watch-toggle-btn.in-watchlist { border-color: var(--accent); color: var(--accent); }
+
+.watchlist-list { display: flex; flex-direction: column; }
+.watchlist-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.watchlist-row:last-child { border-bottom: none; }
+.watchlist-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.status-select {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 0 2px;
+}
+.remove-btn:hover { color: var(--down); }
+.watchlist-meta { font-size: 12px; color: var(--text-secondary); }
+.watchlist-notes { font-size: 12px; color: var(--text-secondary); font-style: italic; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+.modal-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+.modal-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.modal-card input, .modal-card textarea {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  resize: vertical;
+}
+.modal-card input:focus, .modal-card textarea:focus { outline: none; border-color: var(--accent); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
 .watchlist-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px; }
 
 footer { text-align: center; color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); margin-top: 24px; }
@@ -304,10 +393,27 @@ footer { text-align: center; color: var(--text-muted); font-size: 11px; font-fam
       <span class="panel-title">Watchlist</span>
       <span class="panel-weight" id="watchlistCount">0 saham</span>
     </div>
-    <div class="watchlist-empty" id="watchlistBody">belum ada saham di watchlist</div>
+    <div class="watchlist-list" id="watchlistList">
+      <div class="watchlist-empty">belum ada saham di watchlist</div>
+    </div>
   </section>
 
 </main>
+
+<!-- MODAL: tambah/edit watchlist -->
+<div class="modal-overlay" id="watchlistModal" hidden>
+  <div class="modal-card">
+    <div class="modal-title" id="watchlistModalTitle">Tambah ke watchlist</div>
+    <label class="modal-label">Entry zone</label>
+    <input type="text" id="watchlistEntryZone" placeholder="misal: 150-155">
+    <label class="modal-label">Catatan</label>
+    <textarea id="watchlistNotes" rows="3" placeholder="alasan masuk watchlist..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="watchlistCancelBtn" type="button">Batal</button>
+      <button class="btn-primary" id="watchlistSaveBtn" type="button" style="width:auto;">Simpan</button>
+    </div>
+  </div>
+</div>
 
 <footer><span>data: Yahoo Finance &middot; SEC EDGAR</span></footer>
 
@@ -443,12 +549,152 @@ function phaseBadgeHTML(phase) {
   return `<span class="phase-badge phase-${key}">${PHASE_LABEL[phase] ?? "-"}</span>`;
 }
 
+function daysSince(dateStr) {
+  if (!dateStr) return null;
+  const then = new Date(dateStr);
+  const now = new Date();
+  return Math.max(0, Math.floor((now - then) / (1000 * 60 * 60 * 24)));
+}
+
+function escapeAttr(str) {
+  return (str ?? "").toString().replace(/"/g, "&quot;");
+}
+
+// ---------- Watchlist state ----------
+let watchlistCache = {}; // ticker -> data
+let currentWatchlistTicker = null;
+let watchlistModalMeta = null;
+
+async function loadWatchlist() {
+  const snap = await db.collection("watchlist").get();
+  watchlistCache = {};
+  snap.forEach(d => { watchlistCache[d.id] = d.data(); });
+}
+
+function updateWatchButtons() {
+  document.querySelectorAll(".watch-toggle-btn").forEach(btn => {
+    const t = btn.getAttribute("data-ticker");
+    const inWatchlist = !!watchlistCache[t];
+    btn.textContent = inWatchlist ? "\u2713" : "+";
+    btn.classList.toggle("in-watchlist", inWatchlist);
+  });
+}
+
+function openWatchlistModal(ticker, name, sector, score) {
+  currentWatchlistTicker = ticker;
+  watchlistModalMeta = { name, sector, score };
+  const existing = watchlistCache[ticker];
+  document.getElementById("watchlistModalTitle").textContent = existing ? `Edit ${ticker}` : `Tambah ${ticker} ke watchlist`;
+  document.getElementById("watchlistEntryZone").value = existing?.entryZone || "";
+  document.getElementById("watchlistNotes").value = existing?.notes || "";
+  document.getElementById("watchlistModal").hidden = false;
+}
+
+function closeWatchlistModal() {
+  document.getElementById("watchlistModal").hidden = true;
+  currentWatchlistTicker = null;
+}
+
+document.getElementById("watchlistCancelBtn").addEventListener("click", closeWatchlistModal);
+document.getElementById("watchlistModal").addEventListener("click", (e) => {
+  if (e.target.id === "watchlistModal") closeWatchlistModal();
+});
+
+document.getElementById("watchlistSaveBtn").addEventListener("click", async () => {
+  const ticker = currentWatchlistTicker;
+  if (!ticker) return;
+  const entryZone = document.getElementById("watchlistEntryZone").value.trim();
+  const notes = document.getElementById("watchlistNotes").value.trim();
+  const existing = watchlistCache[ticker];
+  const data = {
+    name: watchlistModalMeta?.name || existing?.name || "",
+    sector: watchlistModalMeta?.sector || existing?.sector || "",
+    entryZone,
+    notes,
+    status: existing?.status || "watching",
+    addedDate: existing?.addedDate || new Date().toISOString().slice(0, 10),
+    compositeScoreAtAdd: existing?.compositeScoreAtAdd ?? (watchlistModalMeta?.score ? Number(watchlistModalMeta.score) : null)
+  };
+  try {
+    await db.collection("watchlist").doc(ticker).set(data, { merge: true });
+    watchlistCache[ticker] = data;
+    closeWatchlistModal();
+    renderWatchlistPanel();
+    updateWatchButtons();
+  } catch (err) {
+    console.error("Gagal simpan watchlist:", err);
+    alert("Gagal simpan ke watchlist, coba lagi.");
+  }
+});
+
+function renderWatchlistPanel() {
+  const listEl = document.getElementById("watchlistList");
+  const tickers = Object.keys(watchlistCache);
+  document.getElementById("watchlistCount").textContent = `${tickers.length} saham`;
+
+  if (tickers.length === 0) {
+    listEl.innerHTML = `<div class="watchlist-empty">belum ada saham di watchlist</div>`;
+    return;
+  }
+
+  tickers.sort((a, b) => (watchlistCache[b].addedDate || "").localeCompare(watchlistCache[a].addedDate || ""));
+
+  listEl.innerHTML = tickers.map(ticker => {
+    const w = watchlistCache[ticker];
+    const days = daysSince(w.addedDate);
+    return `
+      <div class="watchlist-row">
+        <div class="watchlist-row-top">
+          <span class="stock-row-ticker">${ticker}</span>
+          <select class="status-select" data-ticker="${ticker}">
+            <option value="watching" ${w.status === "watching" ? "selected" : ""}>Watching</option>
+            <option value="entered" ${w.status === "entered" ? "selected" : ""}>Entered</option>
+            <option value="closed" ${w.status === "closed" ? "selected" : ""}>Closed</option>
+          </select>
+          <button class="remove-btn" data-ticker="${ticker}" aria-label="Hapus dari watchlist">&times;</button>
+        </div>
+        <div class="watchlist-meta">${w.name ?? ""}${w.name ? " \u00b7 " : ""}${w.sector ?? ""}${days !== null ? ` \u00b7 ${days} hari lalu` : ""}</div>
+        ${w.entryZone ? `<div class="watchlist-meta">Entry: ${w.entryZone}</div>` : ""}
+        ${w.notes ? `<div class="watchlist-notes">${w.notes}</div>` : ""}
+      </div>`;
+  }).join("");
+
+  listEl.querySelectorAll(".status-select").forEach(sel => {
+    sel.addEventListener("change", async (e) => {
+      const ticker = e.target.getAttribute("data-ticker");
+      try {
+        await db.collection("watchlist").doc(ticker).update({ status: e.target.value });
+        watchlistCache[ticker].status = e.target.value;
+      } catch (err) {
+        console.error("Gagal update status:", err);
+      }
+    });
+  });
+
+  listEl.querySelectorAll(".remove-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      const ticker = e.currentTarget.getAttribute("data-ticker");
+      if (!confirm(`Hapus ${ticker} dari watchlist?`)) return;
+      try {
+        await db.collection("watchlist").doc(ticker).delete();
+        delete watchlistCache[ticker];
+        renderWatchlistPanel();
+        updateWatchButtons();
+      } catch (err) {
+        console.error("Gagal hapus dari watchlist:", err);
+      }
+    });
+  });
+}
+
 async function loadDashboard() {
   try {
     const metaSnap = await db.collection("meta").doc("latest").get();
     if (!metaSnap.exists) return;
     const date = metaSnap.data().date;
     document.getElementById("lastScan").textContent = `scan terakhir: ${date}`;
+
+    await loadWatchlist();
 
     const regimeSnap = await db.collection("marketRegime").doc(date).get();
     if (regimeSnap.exists) {
@@ -478,12 +724,15 @@ async function loadDashboard() {
       listEl.innerHTML = "";
       stockSnap.forEach(docSnap => {
         const s = docSnap.data();
+        const ticker = docSnap.id;
+        const inWatchlist = !!watchlistCache[ticker];
         const row = document.createElement("div");
         row.className = "stock-row";
         row.innerHTML = `
           <div class="stock-row-top">
-            <span class="stock-row-ticker">${docSnap.id}</span>
+            <span class="stock-row-ticker">${ticker}</span>
             ${phaseBadgeHTML(s.phase)}
+            <button class="watch-toggle-btn ${inWatchlist ? "in-watchlist" : ""}" data-ticker="${ticker}" data-name="${escapeAttr(s.name)}" data-sector="${escapeAttr(s.sector)}" data-score="${s.compositeScore ?? ""}" aria-label="Tambah ke watchlist">${inWatchlist ? "\u2713" : "+"}</button>
           </div>
           <div class="stock-row-name">${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
           <div class="stock-row-bottom">
@@ -498,18 +747,16 @@ async function loadDashboard() {
           </div>`;
         listEl.appendChild(row);
       });
+
+      listEl.querySelectorAll(".watch-toggle-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const b = e.currentTarget;
+          openWatchlistModal(b.getAttribute("data-ticker"), b.getAttribute("data-name"), b.getAttribute("data-sector"), b.getAttribute("data-score"));
+        });
+      });
     }
 
-    const watchSnap = await db.collection("watchlist").get();
-    document.getElementById("watchlistCount").textContent = `${watchSnap.size} saham`;
-    if (!watchSnap.empty) {
-      const rows = [];
-      watchSnap.forEach(docSnap => {
-        const w = docSnap.data();
-        rows.push(`<div class="regime-item"><span class="regime-label">${docSnap.id}</span><span class="regime-value">${w.status ?? "-"}</span></div>`);
-      });
-      document.getElementById("watchlistBody").outerHTML = `<div class="regime-grid" id="watchlistBody">${rows.join("")}</div>`;
-    }
+    renderWatchlistPanel();
   } catch (err) {
     console.error("Gagal load dashboard:", err);
     document.getElementById("lastScan").textContent = "gagal load data";
