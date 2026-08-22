@@ -70,7 +70,7 @@ stock signal    = 30% RS 5 hari (momentum baru) + 15% RS 1 bulan (konfirmasi tre
 - **Extended** - RS 1 bulan >40% ATAU udah >20% di atas MA50. Composite score-nya kena penalti (×0.85) biar gak nyuruh chasing saham yang udah lari jauh.
 - **Below MA50** - belum ada momentum bullish.
 
-Urutan tabel di dashboard: **dulu disaring dulu top 50 by composite score murni** (ini kriteria "bagus & likuid" - sama logikanya kayak sebelumnya, gabungan market/sector/industry/RS/volume/insider). Baru **di dalam 50 kandidat itu aja**, urutan tampil diatur ulang: Early duluan, Building, lalu sisanya - dalam tiap fase tetep diurutin by score. Jadi fase gak pernah ngalahin kualitas - saham Early yang score-nya jelek gak akan masuk pool sama sekali.
+Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada konsep fase) - fase cuma label informasi yang nempel di tiap saham, gak ngaruh ke saham mana yang kepilih atau urutannya. Ini yang paling stabil: saham yang muncul tetep yang emang lolos kriteria kualitas, dan lo bisa lihat sekilas dari badge-nya mana yang baru mulai gerak (Early) vs yang udah lama tren (Building) vs yang udah kejauhan (Extended) - tanpa itu ngubah-ubah saham mana yang ditampilin.
 
 ## Status
 
