@@ -133,6 +133,18 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .score-fill.band-low { background: var(--down); }
 .score-num { min-width: 24px; text-align: right; }
 
+.ticker-cell { display: flex; flex-direction: column; gap: 1px; }
+.ticker-name {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
 .watchlist-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px; }
 
 footer { text-align: center; color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); margin-top: 24px; }
@@ -423,7 +435,7 @@ async function loadDashboard() {
       stockSnap.forEach(docSnap => {
         const s = docSnap.data();
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${docSnap.id}</td><td>${s.sector ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
+        tr.innerHTML = `<td><div class="ticker-cell"><span>${docSnap.id}</span><span class="ticker-name">${s.name ?? ""}</span></div></td><td>${s.sector ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
         tbody.appendChild(tr);
       });
     }
