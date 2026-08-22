@@ -44,6 +44,15 @@ function rankToScore(rank, total) {
   return Math.round(100 - ((rank - 1) * 100) / (total - 1));
 }
 
+// Klasifikasi fase - ini yang bikin radar condong ke "deteksi awal" bukan "udah telat"
+function entryPhase(s) {
+  if (s.pctAboveMa50 == null) return "n/a";
+  if (s.pctAboveMa50 < 0) return "belowMa50";
+  if (s.pctAboveMa50 <= 8 && (s.rs5d ?? 0) > 0) return "early";
+  if (s.rs1m > 40) return "extended";
+  return "building";
+}
+
 async function main() {
   const date = new Date().toISOString().slice(0, 10);
 
@@ -69,15 +78,17 @@ async function main() {
     const daily = await fetchDaily(stock.ticker);
     const price = lastClose(daily);
     const rs1m = pctReturn(daily, 21);
+    const rs5d = pctReturn(daily, 5);
     const ma50 = sma(daily, 50);
     const aboveMa50 = price != null && ma50 != null ? price > ma50 : null;
+    const pctAboveMa50 = price != null && ma50 ? ((price - ma50) / ma50) * 100 : null;
 
     const priorDaily = daily.slice(0, -1); // exclude hari ini biar avg volume fair
     const vol20 = sma(priorDaily.map(d => ({ close: d.volume })), 20);
     const lastVol = daily.length ? daily[daily.length - 1].volume : null;
     const volRatio = vol20 && lastVol ? lastVol / vol20 : null;
 
-    return { ...stock, price, rs1m, volRatio, aboveMa50 };
+    return { ...stock, price, rs1m, rs5d, volRatio, aboveMa50, pctAboveMa50 };
   }, 8, 250);
 
   const validStocks = priceData.filter(s => s && s.rs1m != null);
@@ -113,7 +124,10 @@ async function main() {
   });
   Object.values(bySector).forEach(list => {
     list.sort((a, b) => b.rs1m - a.rs1m);
-    list.forEach((s, i) => { s.rsScoreInSector = rankToScore(i + 1, list.length); });
+    list.forEach((s, i) => { s.rs1mScoreInSector = rankToScore(i + 1, list.length); });
+
+    const rs5dSorted = [...list].sort((a, b) => (b.rs5d ?? -999) - (a.rs5d ?? -999));
+    rs5dSorted.forEach((s, i) => { s.rs5dScoreInSector = rankToScore(i + 1, rs5dSorted.length); });
   });
 
   // ---------- Layer 3: industry (GICS sub-industry) - rata2 RS, rank dalam sector ----------
@@ -148,15 +162,29 @@ async function main() {
   const finalStocks = withInsider.filter(Boolean).map(s => {
     const sectorScore = sectorScoreByEtf[s.etf] ?? 50;
     const volScore = volumeScore(s.volRatio);
-    const stockScore = Math.round(s.rsScoreInSector * 0.4 + volScore * 0.3 + s.insiderScore * 0.3);
-    const compositeScore = clamp(Math.round(
+    // bobot digeser ke RS 5-hari (momentum baru) + insider (leading signal),
+    // RS 1-bulan cuma dipakai buat konfirmasi tren masih hidup, bukan driver utama.
+    const stockScore = Math.round(
+      (s.rs5dScoreInSector ?? 50) * 0.30 +
+      (s.rs1mScoreInSector ?? 50) * 0.15 +
+      volScore * 0.25 +
+      s.insiderScore * 0.30
+    );
+    let compositeScore = clamp(Math.round(
       marketScore * 0.15 + sectorScore * 0.25 + (s.industryScore ?? 50) * 0.15 + stockScore * 0.45
     ));
+
+    const phase = entryPhase(s);
+    // saham yang udah "extended" (naik >40% sebulan) didorong turun - biar gak nyuruh chasing
+    if (phase === "extended") compositeScore = Math.round(compositeScore * 0.85);
+
     return {
       ticker: s.ticker,
       name: s.name,
       sector: s.etf,
+      phase,
       rs: `${s.rs1m.toFixed(1)}%`,
+      rs5d: s.rs5d != null ? `${s.rs5d.toFixed(1)}%` : "-",
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
       insider: s.insiderLabel,
       compositeScore
@@ -174,7 +202,9 @@ async function main() {
       batch.set(stocksRef.doc(s.ticker), {
         name: s.name,
         sector: s.sector,
+        phase: s.phase,
         rs: s.rs,
+        rs5d: s.rs5d,
         volume: s.volume,
         insider: s.insider,
         compositeScore: s.compositeScore
