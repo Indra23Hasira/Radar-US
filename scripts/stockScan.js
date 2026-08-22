@@ -130,6 +130,7 @@ async function main() {
     ));
     return {
       ticker: s.ticker,
+      name: s.name,
       sector: s.etf,
       rs: `${s.rs1m.toFixed(1)}%`,
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
@@ -147,6 +148,7 @@ async function main() {
     const batch = db.batch();
     finalStocks.slice(i, i + CHUNK).forEach(s => {
       batch.set(stocksRef.doc(s.ticker), {
+        name: s.name,
         sector: s.sector,
         rs: s.rs,
         volume: s.volume,
