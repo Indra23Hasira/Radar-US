@@ -192,32 +192,18 @@ async function main() {
     };
   });
 
-  // ---------- Tahap 1: saring dulu yang emang bagus & likuid, murni by composite score ----------
-  const POOL_SIZE = 30;
-  const pool = [...finalStocks].sort((a, b) => b.compositeScore - a.compositeScore).slice(0, POOL_SIZE);
+  finalStocks.sort((a, b) => b.compositeScore - a.compositeScore);
 
-  // ---------- Tahap 2: DI DALAM pool itu aja, urutin ulang - Early duluan, Building, lalu sisanya ----------
-  // dalam tiap fase tetep diurutin by score. Ini cuma ngatur urutan tampil, bukan nyaring ulang kualitasnya.
-  const PHASE_RANK = { early: 0, building: 1, belowMa50: 2, extended: 3 };
-  pool.sort((a, b) => {
-    const pa = PHASE_RANK[a.phase] ?? 4;
-    const pb = PHASE_RANK[b.phase] ?? 4;
-    if (pa !== pb) return pa - pb;
-    return b.compositeScore - a.compositeScore;
-  });
-  pool.forEach((s, i) => { s.rank = i + 1; });
-
-  console.log(`Tulis ${pool.length} saham (dari pool kualitas ${finalStocks.length}) ke Firestore...`);
+  console.log(`Tulis ${finalStocks.length} saham ke Firestore...`);
   const stocksRef = db.collection("stockScores").doc(date).collection("stocks");
   const CHUNK = 400;
-  for (let i = 0; i < pool.length; i += CHUNK) {
+  for (let i = 0; i < finalStocks.length; i += CHUNK) {
     const batch = db.batch();
-    pool.slice(i, i + CHUNK).forEach(s => {
+    finalStocks.slice(i, i + CHUNK).forEach(s => {
       batch.set(stocksRef.doc(s.ticker), {
         name: s.name,
         sector: s.sector,
         phase: s.phase,
-        rank: s.rank,
         rs: s.rs,
         rs5d: s.rs5d,
         volume: s.volume,
@@ -228,7 +214,7 @@ async function main() {
     await batch.commit();
   }
 
-  console.log("Selesai. Top 5:", pool.slice(0, 5).map(s => `${s.ticker} (${s.phase}, ${s.compositeScore})`).join(", "));
+  console.log("Selesai. Top 5:", finalStocks.slice(0, 5).map(s => `${s.ticker} (${s.phase}, ${s.compositeScore})`).join(", "));
 }
 
 main().catch(err => {
