@@ -1,0 +1,12 @@
+{
+  "name": "us-stock-radar-scan",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scan": "node scan.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}
