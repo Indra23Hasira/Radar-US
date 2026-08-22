@@ -61,7 +61,7 @@ Universe: S&P 500, sumber dari dataset publik `datasets/s-and-p-500-companies` d
 
 ```
 compositeScore = 15% market regime + 25% sector rotation + 15% industry (sub-industry) + 45% stock signal
-stock signal    = 30% RS 5 hari (momentum baru) + 15% RS 1 bulan (konfirmasi tren) + 25% volume + 30% insider
+stock signal    = 25% RS 5 hari + 10% RS 1 bulan + 20% volume + 25% insider + 20% earnings/revisi analis
 ```
 
 **Fase entry** (biar radar condong ke "deteksi awal", bukan "udah telat"):
@@ -84,5 +84,7 @@ Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada
 - [x] Modul SEC EDGAR insider scanner (Form 4 buy/sell, 10 hari terakhir)
 - [x] Composite score engine
 - [x] GitHub Actions scheduled workflow
-- [ ] Earnings/revision momentum (belum, layer stock signal masih 3 komponen)
+- [x] Earnings/revision momentum (EPS surprise + revisi analis 30 hari, Yahoo Finance quoteSummary)
 - [ ] Watchlist & episode tracking di UI (data model udah ada, UI-nya belum dipakai)
+
+**Catatan soal modul earnings:** endpoint `quoteSummary` yang dipakai (`scripts/lib/earnings.js`) kadang lebih ketat aksesnya dibanding endpoint harga (`chart`) yang dipakai modul lain. Kalau abis run pertama kolom "Earnings" kosong ("-") buat SEMUA saham (bukan cuma sebagian), kemungkinan Yahoo minta autentikasi tambahan buat endpoint ini - cek log run di GitHub Actions buat pastiin. Kalau itu kejadian, skor-nya otomatis fallback ke netral (50) jadi gak bikin scan lain ikut gagal, tapi berarti perlu dicari sumber data alternatif.
