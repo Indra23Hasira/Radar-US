@@ -183,6 +183,17 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .stock-row-score { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 90px; }
 .stock-row-score .score-bar { min-width: 50px; }
 
+.trend-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.trend-up { color: var(--up); }
+.trend-down { color: var(--down); }
+.trend-flat { color: var(--text-muted); }
+.trend-new { color: var(--accent); }
+
 .watch-toggle-btn {
   background: var(--panel-alt);
   border: 1px solid var(--border);
@@ -557,6 +568,15 @@ function daysSince(dateStr) {
   return Math.max(0, Math.floor((now - then) / (1000 * 60 * 60 * 24)));
 }
 
+const TREND_LOOKBACK_SCANS = 3; // bandingin score sekarang vs N scan sebelumnya (bukan N hari kalender - biar gak keganggu weekend)
+function trendBadgeHTML(current, oldScore) {
+  if (oldScore == null) return `<span class="trend-badge trend-new">baru</span>`;
+  const delta = current - oldScore;
+  if (delta > 0) return `<span class="trend-badge trend-up">\u25b2 +${delta}</span>`;
+  if (delta < 0) return `<span class="trend-badge trend-down">\u25bc ${delta}</span>`;
+  return `<span class="trend-badge trend-flat">\u00b10</span>`;
+}
+
 function escapeAttr(str) {
   return (str ?? "").toString().replace(/"/g, "&quot;");
 }
@@ -725,6 +745,27 @@ async function loadDashboard() {
 
     const stockSnap = await db.collection("stockScores").doc(date).collection("stocks").orderBy("compositeScore", "desc").limit(20).get();
     if (!stockSnap.empty) {
+      // ---------- Historical tracking: bandingin score sekarang vs N scan sebelumnya ----------
+      let compareDate = null;
+      const scanDatesSnap = await db.collection("meta").doc("scanDates").get();
+      if (scanDatesSnap.exists) {
+        const dates = (scanDatesSnap.data().dates || []).slice().sort();
+        const idx = dates.indexOf(date);
+        const compareIdx = idx - TREND_LOOKBACK_SCANS;
+        if (compareIdx >= 0) compareDate = dates[compareIdx];
+      }
+
+      const tickers = stockSnap.docs.map(d => d.id);
+      const oldScoreMap = {};
+      if (compareDate) {
+        const oldSnaps = await Promise.all(
+          tickers.map(t => db.collection("stockScores").doc(compareDate).collection("stocks").doc(t).get())
+        );
+        oldSnaps.forEach((snap, i) => {
+          if (snap.exists) oldScoreMap[tickers[i]] = snap.data().compositeScore;
+        });
+      }
+
       const listEl = document.getElementById("stockList");
       listEl.innerHTML = "";
       stockSnap.forEach(docSnap => {
@@ -747,6 +788,7 @@ async function loadDashboard() {
               <span><span class="metric-label">Vol</span>${s.volume ?? "-"}</span>
               <span><span class="metric-label">Insider</span>${s.insider ?? "-"}</span>
               <span><span class="metric-label">Earnings</span>${s.earnings ?? "-"}</span>
+              ${compareDate ? `<span>${trendBadgeHTML(s.compositeScore, oldScoreMap[ticker])}</span>` : ""}
             </div>
             <div class="stock-row-score">${scoreCellHTML(s.compositeScore)}</div>
           </div>`;
