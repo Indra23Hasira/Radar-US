@@ -247,6 +247,22 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .watchlist-meta { font-size: 12px; color: var(--text-secondary); }
 .watchlist-notes { font-size: 12px; color: var(--text-secondary); font-style: italic; }
 
+.backtest-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.backtest-card {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.backtest-card-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.backtest-card-value { font-family: var(--font-mono); font-size: 18px; font-weight: 500; }
+.backtest-phase-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.backtest-phase-row:last-child { border-bottom: none; }
+.backtest-phase-stats { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; }
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -395,6 +411,17 @@ footer { text-align: center; color: var(--text-muted); font-size: 11px; font-fam
     </div>
     <div class="stock-list" id="stockList">
       <div class="empty-row">menunggu data scan pertama</div>
+    </div>
+  </section>
+
+  <!-- BACKTEST -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Backtest</span>
+      <span class="panel-weight" id="backtestMeta">belum ada data</span>
+    </div>
+    <div id="backtestBody">
+      <div class="watchlist-empty">belum ada hasil backtest - jalan tiap Minggu otomatis, atau trigger manual</div>
     </div>
   </section>
 
@@ -651,6 +678,51 @@ document.getElementById("watchlistSaveBtn").addEventListener("click", async () =
   }
 });
 
+function renderBacktestPanel(data) {
+  const bodyEl = document.getElementById("backtestBody");
+  const metaEl = document.getElementById("backtestMeta");
+
+  if (!data || !data.overall) {
+    metaEl.textContent = "belum ada data";
+    bodyEl.innerHTML = `<div class="watchlist-empty">belum ada hasil backtest - jalan tiap Minggu otomatis, atau trigger manual</div>`;
+    return;
+  }
+
+  metaEl.textContent = `${data.dateRange?.from ?? "?"} s/d ${data.dateRange?.to ?? "?"} \u00b7 hold ${data.holdingDays}d`;
+
+  const phaseOrder = ["early", "building", "extended", "belowMa50", "n/a"];
+  const phaseLabelMap = { early: "Early", building: "Building", extended: "Extended", belowMa50: "Below MA50", "n/a": "Lainnya" };
+
+  const phaseRows = phaseOrder
+    .filter(p => data.byPhase && data.byPhase[p])
+    .map(p => {
+      const stat = data.byPhase[p];
+      const returnClass = stat.avgReturn > 0 ? "trend-up" : stat.avgReturn < 0 ? "trend-down" : "trend-flat";
+      return `
+        <div class="backtest-phase-row">
+          <span>${phaseLabelMap[p] ?? p}</span>
+          <div class="backtest-phase-stats">
+            <span>n=${stat.count}</span>
+            <span>win ${stat.winRate}%</span>
+            <span class="${returnClass}">${stat.avgReturn > 0 ? "+" : ""}${stat.avgReturn}%</span>
+          </div>
+        </div>`;
+    }).join("");
+
+  bodyEl.innerHTML = `
+    <div class="backtest-grid">
+      <div class="backtest-card">
+        <div class="backtest-card-label">Win rate keseluruhan</div>
+        <div class="backtest-card-value">${data.overall.winRate}%</div>
+      </div>
+      <div class="backtest-card">
+        <div class="backtest-card-label">Avg return (${data.holdingDays}d)</div>
+        <div class="backtest-card-value">${data.overall.avgReturn > 0 ? "+" : ""}${data.overall.avgReturn}%</div>
+      </div>
+    </div>
+    ${phaseRows}`;
+}
+
 function renderWatchlistPanel() {
   const listEl = document.getElementById("watchlistList");
   const tickers = Object.keys(watchlistCache);
@@ -804,6 +876,9 @@ async function loadDashboard() {
     }
 
     renderWatchlistPanel();
+
+    const backtestSnap = await db.collection("backtest").doc("latest").get();
+    renderBacktestPanel(backtestSnap.exists ? backtestSnap.data() : null);
   } catch (err) {
     console.error("Gagal load dashboard:", err);
     document.getElementById("lastScan").textContent = "gagal load data";
