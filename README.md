@@ -61,8 +61,14 @@ Universe: S&P 500, sumber dari dataset publik `datasets/s-and-p-500-companies` d
 
 ```
 compositeScore = 15% market regime + 25% sector rotation + 15% industry (sub-industry) + 45% stock signal
-stock signal    = 40% relative strength (rank dalam sector) + 30% volume + 30% insider (SEC EDGAR Form 4)
+stock signal    = 30% RS 5 hari (momentum baru) + 15% RS 1 bulan (konfirmasi tren) + 25% volume + 30% insider
 ```
+
+**Fase entry** (biar radar condong ke "deteksi awal", bukan "udah telat"):
+- **Early** - harga baru breakout dari MA50 (0-8% di atasnya) + momentum 5 hari positif. Ini prioritas utama.
+- **Building** - masih dalam tren wajar, belum ekstrem.
+- **Extended** - udah naik >40% dalam sebulan. Composite score-nya kena penalti (×0.85) biar gak nyuruh chasing saham yang udah lari jauh.
+- **Below MA50** - belum ada momentum bullish.
 
 ## Status
 
