@@ -1,5 +1,6 @@
 import admin from "firebase-admin";
 import { fetchDaily, sma, lastClose, pctReturn, clamp } from "./lib/yahoo.js";
+import { trendLabel, trendScore, vixLabel, vixScore } from "./lib/scoring.js";
 
 // ---------- Firebase Admin init ----------
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
@@ -20,35 +21,6 @@ const SECTORS = [
   { sector: "Real Estate", etf: "XLRE" },
   { sector: "Communication Services", etf: "XLC" }
 ];
-
-function trendLabel(price, ma50, ma200) {
-  if (price == null || ma50 == null) return "neutral";
-  if (ma200 != null && price > ma50 && price > ma200) return "bullish";
-  if (ma200 != null && price < ma50 && price < ma200) return "bearish";
-  return "neutral";
-}
-
-function trendScore(label) {
-  if (label === "bullish") return 100;
-  if (label === "bearish") return 20;
-  return 55;
-}
-
-function vixLabel(vix) {
-  if (vix == null) return "n/a";
-  if (vix < 15) return "low";
-  if (vix < 25) return "normal";
-  return "high";
-}
-
-function vixScore(vix) {
-  if (vix == null) return 50;
-  if (vix < 15) return 90;
-  if (vix < 20) return 70;
-  if (vix < 25) return 50;
-  if (vix < 30) return 30;
-  return 10;
-}
 
 async function computeMarketRegime() {
   const [spy, qqq, vixData] = await Promise.all([
@@ -109,12 +81,18 @@ async function main() {
   const date = new Date().toISOString().slice(0, 10);
 
   // /marketRegime/{date}
+  // breadth di sini masih proxy dari 11 sector ETF - stockScan.js bakal update
+  // ke breadth beneran (% dari 500 saham individual) begitu dia jalan abis ini.
   await db.collection("marketRegime").doc(date).set({
     spxTrend: regime.spxTrend,
     nasdaqTrend: regime.nasdaqTrend,
     breadth: `${breadth}%`,
+    breadthSource: "11 sector ETF (proxy)",
     vix: `${regime.vix?.toFixed(1) ?? "-"} (${vixLabel(regime.vix)})`,
     score: marketScore,
+    spxTrendScore: trendScore(regime.spxTrend),
+    nasdaqTrendScore: trendScore(regime.nasdaqTrend),
+    vixScore: vixScore(regime.vix),
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
