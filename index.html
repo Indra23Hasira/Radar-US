@@ -452,7 +452,7 @@ async function loadDashboard() {
       });
     }
 
-    const stockSnap = await db.collection("stockScores").doc(date).collection("stocks").orderBy("sortKey", "asc").limit(20).get();
+    const stockSnap = await db.collection("stockScores").doc(date).collection("stocks").orderBy("rank", "asc").limit(20).get();
     if (!stockSnap.empty) {
       const tbody = document.querySelector("#stockTable tbody");
       tbody.innerHTML = "";
