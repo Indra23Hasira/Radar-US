@@ -117,8 +117,6 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .regime-value { font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
 
 .data-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
-.table-scroll { overflow-x: auto; }
-.table-scroll .data-table { min-width: 660px; }
 .data-table th {
   text-align: left; font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--border);
@@ -159,6 +157,31 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .phase-building { background: rgba(251, 191, 36, 0.15); color: var(--watch); }
 .phase-extended { background: rgba(248, 113, 113, 0.15); color: var(--down); }
 .phase-belowMa50, .phase-na { background: var(--panel-alt); color: var(--text-muted); }
+
+.stock-list { display: flex; flex-direction: column; }
+.stock-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stock-row:last-child { border-bottom: none; }
+.stock-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stock-row-ticker { font-family: var(--font-mono); font-weight: 500; font-size: 14px; }
+.stock-row-name { font-size: 11px; color: var(--text-muted); }
+.stock-row-bottom { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.stock-row-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.metric-label { color: var(--text-muted); margin-right: 3px; }
+.stock-row-score { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 90px; }
+.stock-row-score .score-bar { min-width: 50px; }
 
 .watchlist-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px; }
 
@@ -270,11 +293,8 @@ footer { text-align: center; color: var(--text-muted); font-size: 11px; font-fam
       <span class="panel-title">Stock ranking</span>
       <span class="panel-weight">composite score</span>
     </div>
-    <div class="table-scroll">
-    <table class="data-table" id="stockTable">
-      <thead><tr><th>Ticker</th><th>Phase</th><th>RS 5d</th><th>RS 1m</th><th>Vol</th><th>Insider</th><th>Earnings</th><th>Score</th></tr></thead>
-      <tbody><tr class="empty-row"><td colspan="8">menunggu data scan pertama</td></tr></tbody>
-    </table>
+    <div class="stock-list" id="stockList">
+      <div class="empty-row">menunggu data scan pertama</div>
     </div>
   </section>
 
@@ -454,13 +474,29 @@ async function loadDashboard() {
 
     const stockSnap = await db.collection("stockScores").doc(date).collection("stocks").orderBy("compositeScore", "desc").limit(20).get();
     if (!stockSnap.empty) {
-      const tbody = document.querySelector("#stockTable tbody");
-      tbody.innerHTML = "";
+      const listEl = document.getElementById("stockList");
+      listEl.innerHTML = "";
       stockSnap.forEach(docSnap => {
         const s = docSnap.data();
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td><div class="ticker-cell"><span>${docSnap.id}</span><span class="ticker-name">${s.name ?? ""}${s.name ? " · " : ""}${s.sector ?? ""}</span></div></td><td>${phaseBadgeHTML(s.phase)}</td><td>${s.rs5d ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${s.earnings ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
-        tbody.appendChild(tr);
+        const row = document.createElement("div");
+        row.className = "stock-row";
+        row.innerHTML = `
+          <div class="stock-row-top">
+            <span class="stock-row-ticker">${docSnap.id}</span>
+            ${phaseBadgeHTML(s.phase)}
+          </div>
+          <div class="stock-row-name">${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
+          <div class="stock-row-bottom">
+            <div class="stock-row-metrics">
+              <span><span class="metric-label">RS5d</span>${s.rs5d ?? "-"}</span>
+              <span><span class="metric-label">RS1m</span>${s.rs ?? "-"}</span>
+              <span><span class="metric-label">Vol</span>${s.volume ?? "-"}</span>
+              <span><span class="metric-label">Insider</span>${s.insider ?? "-"}</span>
+              <span><span class="metric-label">Earnings</span>${s.earnings ?? "-"}</span>
+            </div>
+            <div class="stock-row-score">${scoreCellHTML(s.compositeScore)}</div>
+          </div>`;
+        listEl.appendChild(row);
       });
     }
 
