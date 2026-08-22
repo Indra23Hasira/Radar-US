@@ -49,6 +49,7 @@ Catatan: scan saham (`stockScan.js`) scan ~500 ticker S&P 500 + cek insider fili
 
 ```
 /meta/latest                          → { date: "YYYY-MM-DD" }
+/meta/scanDates                       → { dates: ["2026-08-20", "2026-08-21", ...] } - buat historical tracking
 /marketRegime/{date}                  → { spxTrend, nasdaqTrend, breadth, vix, score }
 /sectorScores/{date}/sectors/{etf}    → { sector, etf, rs1m, rank }
 /stockScores/{date}/stocks/{ticker}   → { sector, rs, volume, insider, compositeScore }
@@ -85,6 +86,8 @@ Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada
 - [x] Composite score engine
 - [x] GitHub Actions scheduled workflow
 - [x] Earnings/revision momentum (EPS surprise + revisi analis 30 hari, Yahoo Finance quoteSummary)
-- [ ] Watchlist & episode tracking di UI (data model udah ada, UI-nya belum dipakai)
+- [x] Watchlist & episode tracking di UI (klik "+" di stock ranking, isi entry zone/catatan, status watching/entered/closed)
+- [x] Historical tracking (badge trend score vs 3 scan sebelumnya, di /meta/scanDates)
+- [ ] Notifikasi harian (belum - kandidat: Telegram bot, paling gampang setup-nya)
 
 **Catatan soal modul earnings:** endpoint `quoteSummary` yang dipakai (`scripts/lib/earnings.js`) kadang lebih ketat aksesnya dibanding endpoint harga (`chart`) yang dipakai modul lain. Kalau abis run pertama kolom "Earnings" kosong ("-") buat SEMUA saham (bukan cuma sebagian), kemungkinan Yahoo minta autentikasi tambahan buat endpoint ini - cek log run di GitHub Actions buat pastiin. Kalau itu kejadian, skor-nya otomatis fallback ke netral (50) jadi gak bikin scan lain ikut gagal, tapi berarti perlu dicari sumber data alternatif.
