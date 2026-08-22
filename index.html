@@ -117,6 +117,8 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .regime-value { font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
 
 .data-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
+.table-scroll { overflow-x: auto; }
+.table-scroll .data-table { min-width: 560px; }
 .data-table th {
   text-align: left; font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--border);
@@ -142,8 +144,21 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+  max-width: 130px;
 }
+
+.phase-badge {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.phase-early { background: rgba(52, 211, 153, 0.15); color: var(--up); }
+.phase-building { background: rgba(251, 191, 36, 0.15); color: var(--watch); }
+.phase-extended { background: rgba(248, 113, 113, 0.15); color: var(--down); }
+.phase-belowMa50, .phase-na { background: var(--panel-alt); color: var(--text-muted); }
 
 .watchlist-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px; }
 
@@ -255,10 +270,12 @@ footer { text-align: center; color: var(--text-muted); font-size: 11px; font-fam
       <span class="panel-title">Stock ranking</span>
       <span class="panel-weight">composite score</span>
     </div>
+    <div class="table-scroll">
     <table class="data-table" id="stockTable">
-      <thead><tr><th>Ticker</th><th>Sector</th><th>RS</th><th>Vol</th><th>Insider</th><th>Score</th></tr></thead>
-      <tbody><tr class="empty-row"><td colspan="6">menunggu data scan pertama</td></tr></tbody>
+      <thead><tr><th>Ticker</th><th>Phase</th><th>RS 5d</th><th>RS 1m</th><th>Vol</th><th>Insider</th><th>Score</th></tr></thead>
+      <tbody><tr class="empty-row"><td colspan="7">menunggu data scan pertama</td></tr></tbody>
     </table>
+    </div>
   </section>
 
   <!-- WATCHLIST -->
@@ -400,6 +417,12 @@ function scoreCellHTML(score) {
   return `<div class="score-cell"><div class="score-bar"><div class="score-fill ${scoreBand(n)}" style="width:${n}%"></div></div><span class="score-num">${n}</span></div>`;
 }
 
+const PHASE_LABEL = { early: "Early", building: "Building", extended: "Extended", belowMa50: "Below MA50", "n/a": "-" };
+function phaseBadgeHTML(phase) {
+  const key = phase && PHASE_LABEL[phase] ? phase : "na";
+  return `<span class="phase-badge phase-${key}">${PHASE_LABEL[phase] ?? "-"}</span>`;
+}
+
 async function loadDashboard() {
   try {
     const metaSnap = await db.collection("meta").doc("latest").get();
@@ -436,7 +459,7 @@ async function loadDashboard() {
       stockSnap.forEach(docSnap => {
         const s = docSnap.data();
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td><div class="ticker-cell"><span>${docSnap.id}</span><span class="ticker-name">${s.name ?? ""}</span></div></td><td>${s.sector ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
+        tr.innerHTML = `<td><div class="ticker-cell"><span>${docSnap.id}</span><span class="ticker-name">${s.name ?? ""}${s.name ? " · " : ""}${s.sector ?? ""}</span></div></td><td>${phaseBadgeHTML(s.phase)}</td><td>${s.rs5d ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
         tbody.appendChild(tr);
       });
     }
