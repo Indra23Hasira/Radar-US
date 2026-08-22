@@ -66,9 +66,11 @@ stock signal    = 30% RS 5 hari (momentum baru) + 15% RS 1 bulan (konfirmasi tre
 
 **Fase entry** (biar radar condong ke "deteksi awal", bukan "udah telat"):
 - **Early** - harga baru breakout dari MA50 (0-8% di atasnya) + momentum 5 hari positif. Ini prioritas utama.
-- **Building** - masih dalam tren wajar, belum ekstrem.
+- **Building** - masih dalam tren wajar, belum ekstrem. Tetep valid buat entry.
 - **Extended** - udah naik >40% dalam sebulan. Composite score-nya kena penalti (×0.85) biar gak nyuruh chasing saham yang udah lari jauh.
 - **Below MA50** - belum ada momentum bullish.
+
+Urutan tabel di dashboard **diprioritaskan by fase dulu** (semua Early tampil duluan, baru Building, baru sisanya), baru di dalam tiap fase diurutin by composite score. Jadi saham Early gak ketimbun sama Building yang score-nya kebetulan lebih tinggi.
 
 ## Status
 
