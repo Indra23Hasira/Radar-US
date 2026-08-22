@@ -178,11 +178,17 @@ async function main() {
     // saham yang udah "extended" (naik >40% sebulan) didorong turun - biar gak nyuruh chasing
     if (phase === "extended") compositeScore = Math.round(compositeScore * 0.85);
 
+    // sortKey nentuin urutan tampil: Early duluan semua, baru Building, baru sisanya -
+    // di dalam tiap fase tetep diurutin by score (angka kecil = tampil duluan)
+    const phaseRank = { early: 0, building: 1, belowMa50: 2, extended: 3 }[phase] ?? 4;
+    const sortKey = phaseRank * 1000 + (100 - compositeScore);
+
     return {
       ticker: s.ticker,
       name: s.name,
       sector: s.etf,
       phase,
+      sortKey,
       rs: `${s.rs1m.toFixed(1)}%`,
       rs5d: s.rs5d != null ? `${s.rs5d.toFixed(1)}%` : "-",
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
@@ -191,7 +197,7 @@ async function main() {
     };
   });
 
-  finalStocks.sort((a, b) => b.compositeScore - a.compositeScore);
+  finalStocks.sort((a, b) => a.sortKey - b.sortKey);
 
   console.log(`Tulis ${finalStocks.length} saham ke Firestore...`);
   const stocksRef = db.collection("stockScores").doc(date).collection("stocks");
@@ -203,6 +209,7 @@ async function main() {
         name: s.name,
         sector: s.sector,
         phase: s.phase,
+        sortKey: s.sortKey,
         rs: s.rs,
         rs5d: s.rs5d,
         volume: s.volume,
