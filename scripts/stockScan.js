@@ -48,8 +48,9 @@ function rankToScore(rank, total) {
 function entryPhase(s) {
   if (s.pctAboveMa50 == null) return "n/a";
   if (s.pctAboveMa50 < 0) return "belowMa50";
-  if (s.pctAboveMa50 <= 8 && (s.rs5d ?? 0) > 0) return "early";
-  if (s.rs1m > 40) return "extended";
+  if (s.rs1m > 40 || s.pctAboveMa50 > 20) return "extended";
+  // syarat "early" diperketat: bener2 deket MA50 (baru breakout) DAN momentum 5 hari nyata (bukan sekadar positif dikit)
+  if (s.pctAboveMa50 <= 5 && (s.rs5d ?? 0) > 1) return "early";
   return "building";
 }
 
@@ -175,20 +176,14 @@ async function main() {
     ));
 
     const phase = entryPhase(s);
-    // saham yang udah "extended" (naik >40% sebulan) didorong turun - biar gak nyuruh chasing
+    // saham yang udah "extended" (naik >40% sebulan / >20% di atas MA50) didorong turun - biar gak nyuruh chasing
     if (phase === "extended") compositeScore = Math.round(compositeScore * 0.85);
-
-    // sortKey nentuin urutan tampil: Early duluan semua, baru Building, baru sisanya -
-    // di dalam tiap fase tetep diurutin by score (angka kecil = tampil duluan)
-    const phaseRank = { early: 0, building: 1, belowMa50: 2, extended: 3 }[phase] ?? 4;
-    const sortKey = phaseRank * 1000 + (100 - compositeScore);
 
     return {
       ticker: s.ticker,
       name: s.name,
       sector: s.etf,
       phase,
-      sortKey,
       rs: `${s.rs1m.toFixed(1)}%`,
       rs5d: s.rs5d != null ? `${s.rs5d.toFixed(1)}%` : "-",
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
@@ -197,19 +192,32 @@ async function main() {
     };
   });
 
-  finalStocks.sort((a, b) => a.sortKey - b.sortKey);
+  // ---------- Tahap 1: saring dulu yang emang bagus & likuid, murni by composite score ----------
+  const POOL_SIZE = 30;
+  const pool = [...finalStocks].sort((a, b) => b.compositeScore - a.compositeScore).slice(0, POOL_SIZE);
 
-  console.log(`Tulis ${finalStocks.length} saham ke Firestore...`);
+  // ---------- Tahap 2: DI DALAM pool itu aja, urutin ulang - Early duluan, Building, lalu sisanya ----------
+  // dalam tiap fase tetep diurutin by score. Ini cuma ngatur urutan tampil, bukan nyaring ulang kualitasnya.
+  const PHASE_RANK = { early: 0, building: 1, belowMa50: 2, extended: 3 };
+  pool.sort((a, b) => {
+    const pa = PHASE_RANK[a.phase] ?? 4;
+    const pb = PHASE_RANK[b.phase] ?? 4;
+    if (pa !== pb) return pa - pb;
+    return b.compositeScore - a.compositeScore;
+  });
+  pool.forEach((s, i) => { s.rank = i + 1; });
+
+  console.log(`Tulis ${pool.length} saham (dari pool kualitas ${finalStocks.length}) ke Firestore...`);
   const stocksRef = db.collection("stockScores").doc(date).collection("stocks");
   const CHUNK = 400;
-  for (let i = 0; i < finalStocks.length; i += CHUNK) {
+  for (let i = 0; i < pool.length; i += CHUNK) {
     const batch = db.batch();
-    finalStocks.slice(i, i + CHUNK).forEach(s => {
+    pool.slice(i, i + CHUNK).forEach(s => {
       batch.set(stocksRef.doc(s.ticker), {
         name: s.name,
         sector: s.sector,
         phase: s.phase,
-        sortKey: s.sortKey,
+        rank: s.rank,
         rs: s.rs,
         rs5d: s.rs5d,
         volume: s.volume,
@@ -220,7 +228,7 @@ async function main() {
     await batch.commit();
   }
 
-  console.log("Selesai. Top 5:", finalStocks.slice(0, 5).map(s => `${s.ticker} (${s.compositeScore})`).join(", "));
+  console.log("Selesai. Top 5:", pool.slice(0, 5).map(s => `${s.ticker} (${s.phase}, ${s.compositeScore})`).join(", "));
 }
 
 main().catch(err => {
