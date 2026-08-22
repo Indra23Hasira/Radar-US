@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>US Stock Radar</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0D0F0E">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #0B0D0C;
+  --panel: #12151A;
+  --panel-alt: #171B21;
+  --border: #232830;
+  --text-primary: #E8EAE6;
+  --text-secondary: #8A9099;
+  --text-muted: #5A6068;
+  --accent: #2DD4BF;
+  --up: #34D399;
+  --down: #F87171;
+  --watch: #FBBF24;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'Inter', -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-bottom: 48px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+
+.brand { display: flex; align-items: baseline; gap: 8px; }
+.brand-mark {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.brand-name { font-weight: 600; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.last-scan { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-ghost:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+
+.btn-primary {
+  width: 100%;
+  background: var(--accent);
+  color: #06201C;
+  border: none;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn-primary:hover { opacity: 0.9; }
+
+.btn-secondary {
+  background: var(--panel-alt);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-secondary:hover { border-color: var(--accent); }
+
+main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.panel-title { font-weight: 600; font-size: 14px; }
+.panel-weight { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.regime-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.regime-item { display: flex; flex-direction: column; gap: 4px; }
+.regime-label { font-size: 11px; color: var(--text-secondary); }
+.regime-value { font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
+
+.data-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
+.data-table th {
+  text-align: left; font-family: var(--font-sans); font-size: 11px; font-weight: 500;
+  color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+.data-table tr:last-child td { border-bottom: none; }
+.empty-row td { font-family: var(--font-sans); color: var(--text-muted); text-align: center; padding: 20px 8px; font-size: 13px; }
+
+.score-cell { display: flex; align-items: center; gap: 8px; }
+.score-bar { flex: 1; height: 5px; background: var(--panel-alt); border-radius: 3px; overflow: hidden; min-width: 40px; }
+.score-fill { height: 100%; border-radius: 3px; }
+.score-fill.band-high { background: var(--up); }
+.score-fill.band-mid { background: var(--watch); }
+.score-fill.band-low { background: var(--down); }
+.score-num { min-width: 24px; text-align: right; }
+
+.watchlist-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px; }
+
+footer { text-align: center; color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); margin-top: 24px; }
+
+@media (max-width: 420px) { .regime-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Auth */
+.login-screen { min-height: calc(100vh - 60px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card {
+  width: 100%; max-width: 320px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 14px;
+}
+.login-brand { display: flex; gap: 8px; align-items: baseline; justify-content: center; margin-bottom: 8px; }
+.login-divider { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 11px; }
+.login-divider::before, .login-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.login-form { display: flex; flex-direction: column; gap: 10px; }
+.login-form input, .inline-form input {
+  background: var(--panel-alt); border: 1px solid var(--border); color: var(--text-primary);
+  font-family: var(--font-sans); font-size: 13px; padding: 10px 12px; border-radius: 6px;
+}
+.login-form input:focus, .inline-form input:focus { outline: none; border-color: var(--accent); }
+.login-status { font-size: 12px; color: var(--text-secondary); text-align: center; min-height: 14px; }
+
+.set-password-banner {
+  max-width: 640px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 16px; background: var(--panel-alt); border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text-secondary);
+}
+.inline-form { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">US</span>
+    <span class="brand-name">Stock Radar</span>
+  </div>
+  <div class="topbar-right">
+    <div class="last-scan" id="lastScan">belum ada data</div>
+    <button class="btn-ghost" id="logoutBtn" hidden>Keluar</button>
+  </div>
+</header>
+
+<!-- LOGIN SCREEN -->
+<section id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="brand-mark">US</span>
+      <span class="brand-name">Stock Radar</span>
+    </div>
+
+    <button class="btn-primary" id="googleLoginBtn">Masuk dengan Google</button>
+    <div class="login-status" id="googleLoginStatus"></div>
+
+    <div class="login-divider"><span>atau</span></div>
+
+    <form id="passwordLoginForm" class="login-form">
+      <input type="email" id="loginEmail" placeholder="email" autocomplete="email" required>
+      <input type="password" id="loginPassword" placeholder="password" autocomplete="current-password" required>
+      <button type="submit" class="btn-secondary">Login manual</button>
+    </form>
+    <div class="login-status" id="loginPasswordStatus"></div>
+  </div>
+</section>
+
+<!-- SET PASSWORD PROMPT (muncul kalau akun belum punya password credential) -->
+<section id="setPasswordBanner" class="set-password-banner" hidden>
+  <span>Mau bisa login manual juga (jaga-jaga)? Set password sekali di sini.</span>
+  <form id="setPasswordForm" class="inline-form">
+    <input type="password" id="newPassword" placeholder="password baru" minlength="6" required>
+    <button type="submit" class="btn-secondary">Simpan</button>
+  </form>
+  <div class="login-status" id="setPasswordStatus"></div>
+</section>
+
+<main hidden>
+
+  <!-- LAYER 1: MARKET REGIME -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Market regime</span>
+      <span class="panel-weight">bobot 15%</span>
+    </div>
+    <div class="regime-grid" id="regimeGrid">
+      <div class="regime-item"><span class="regime-label">S&amp;P 500</span><span class="regime-value" data-field="spxTrend">–</span></div>
+      <div class="regime-item"><span class="regime-label">Nasdaq</span><span class="regime-value" data-field="nasdaqTrend">–</span></div>
+      <div class="regime-item"><span class="regime-label">Breadth</span><span class="regime-value" data-field="breadth">–</span></div>
+      <div class="regime-item"><span class="regime-label">VIX</span><span class="regime-value" data-field="vix">–</span></div>
+    </div>
+  </section>
+
+  <!-- LAYER 2: SECTOR ROTATION -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Sector rotation</span>
+      <span class="panel-weight">bobot 25%</span>
+    </div>
+    <table class="data-table" id="sectorTable">
+      <thead><tr><th>Sector</th><th>ETF</th><th>RS 1M</th><th>Rank</th></tr></thead>
+      <tbody><tr class="empty-row"><td colspan="4">menunggu data scan pertama</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- LAYER 4: STOCK RANKING (composite score) -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Stock ranking</span>
+      <span class="panel-weight">composite score</span>
+    </div>
+    <table class="data-table" id="stockTable">
+      <thead><tr><th>Ticker</th><th>Sector</th><th>RS</th><th>Vol</th><th>Insider</th><th>Score</th></tr></thead>
+      <tbody><tr class="empty-row"><td colspan="6">menunggu data scan pertama</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- WATCHLIST -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Watchlist</span>
+      <span class="panel-weight" id="watchlistCount">0 saham</span>
+    </div>
+    <div class="watchlist-empty" id="watchlistBody">belum ada saham di watchlist</div>
+  </section>
+
+</main>
+
+<footer><span>data: Yahoo Finance &middot; SEC EDGAR</span></footer>
+
+<!-- Firebase (compat SDK, sama seperti app-app lain) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+<script>
+// ---------- Firebase config (project: radar-us) ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyCfnD7xUtpyZTa9THGY3YYVVnzPmTAb2RU",
+  authDomain: "radar-us.firebaseapp.com",
+  projectId: "radar-us",
+  storageBucket: "radar-us.firebasestorage.app",
+  messagingSenderId: "325143375428",
+  appId: "1:325143375428:web:aa5fd09f2db5991ac09611"
+};
+
+const OWNER_EMAIL = "indraanggriawan17@gmail.com";
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+// ---------- Elemen DOM ----------
+const loginScreen = document.getElementById("loginScreen");
+const mainEl = document.querySelector("main");
+const logoutBtn = document.getElementById("logoutBtn");
+const setPasswordBanner = document.getElementById("setPasswordBanner");
+
+function showApp() {
+  loginScreen.hidden = true;
+  mainEl.hidden = false;
+  logoutBtn.hidden = false;
+}
+function showLogin() {
+  loginScreen.hidden = false;
+  mainEl.hidden = true;
+  logoutBtn.hidden = true;
+  setPasswordBanner.hidden = true;
+}
+
+// ---------- Google Sign-In ----------
+// pakai redirect (bukan popup) - popup pernah hang di GitHub Pages karena COOP
+document.getElementById("googleLoginBtn").addEventListener("click", () => {
+  auth.signInWithRedirect(googleProvider);
+});
+
+auth.getRedirectResult().catch(err => {
+  console.error("Google sign-in gagal:", err);
+  document.getElementById("googleLoginStatus").textContent = "login Google gagal, coba lagi";
+});
+
+// ---------- Login manual email + password ----------
+document.getElementById("passwordLoginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById("loginPasswordStatus");
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  try {
+    statusEl.textContent = "login...";
+    await auth.signInWithEmailAndPassword(email, password);
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "email/password salah, atau belum pernah set password - login Google dulu";
+  }
+});
+
+// ---------- Set / update password (link ke akun aktif) ----------
+// kalau akun belum punya provider "password" -> link. kalau sudah ada -> update saja.
+document.getElementById("setPasswordForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById("setPasswordStatus");
+  const password = document.getElementById("newPassword").value;
+  const user = auth.currentUser;
+  try {
+    statusEl.textContent = "menyimpan...";
+    const hasPassword = user.providerData.some(p => p.providerId === "password");
+    if (hasPassword) {
+      await user.updatePassword(password);
+    } else {
+      const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+      await user.linkWithCredential(credential);
+    }
+    statusEl.textContent = "password tersimpan, sekarang bisa login manual juga";
+    setTimeout(() => { setPasswordBanner.hidden = true; }, 2500);
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "gagal simpan password";
+  }
+});
+
+logoutBtn.addEventListener("click", () => auth.signOut());
+
+// ---------- Gate akses + render dashboard ----------
+auth.onAuthStateChanged(user => {
+  if (user && user.email === OWNER_EMAIL) {
+    showApp();
+    const hasPassword = user.providerData.some(p => p.providerId === "password");
+    setPasswordBanner.hidden = hasPassword;
+    loadDashboard();
+  } else if (user) {
+    // login berhasil tapi email bukan pemilik - tolak & keluarkan
+    auth.signOut();
+    showLogin();
+  } else {
+    showLogin();
+  }
+});
+
+// ---------- Render dashboard dari Firestore ----------
+function scoreBand(score) {
+  if (score >= 70) return "band-high";
+  if (score >= 40) return "band-mid";
+  return "band-low";
+}
+function scoreCellHTML(score) {
+  const n = Number(score) || 0;
+  return `<div class="score-cell"><div class="score-bar"><div class="score-fill ${scoreBand(n)}" style="width:${n}%"></div></div><span class="score-num">${n}</span></div>`;
+}
+
+async function loadDashboard() {
+  try {
+    const metaSnap = await db.collection("meta").doc("latest").get();
+    if (!metaSnap.exists) return;
+    const date = metaSnap.data().date;
+    document.getElementById("lastScan").textContent = `scan terakhir: ${date}`;
+
+    const regimeSnap = await db.collection("marketRegime").doc(date).get();
+    if (regimeSnap.exists) {
+      const d = regimeSnap.data();
+      document.querySelectorAll("[data-field]").forEach(el => {
+        const key = el.getAttribute("data-field");
+        if (d[key] !== undefined) el.textContent = d[key];
+      });
+    }
+
+    const sectorSnap = await db.collection("sectorScores").doc(date).collection("sectors").orderBy("rank").get();
+    if (!sectorSnap.empty) {
+      const tbody = document.querySelector("#sectorTable tbody");
+      tbody.innerHTML = "";
+      sectorSnap.forEach(docSnap => {
+        const s = docSnap.data();
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${s.sector ?? "-"}</td><td>${s.etf ?? "-"}</td><td>${s.rs1m ?? "-"}</td><td>#${s.rank ?? "-"}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    const stockSnap = await db.collection("stockScores").doc(date).collection("stocks").orderBy("compositeScore", "desc").limit(20).get();
+    if (!stockSnap.empty) {
+      const tbody = document.querySelector("#stockTable tbody");
+      tbody.innerHTML = "";
+      stockSnap.forEach(docSnap => {
+        const s = docSnap.data();
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${docSnap.id}</td><td>${s.sector ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    const watchSnap = await db.collection("watchlist").get();
+    document.getElementById("watchlistCount").textContent = `${watchSnap.size} saham`;
+    if (!watchSnap.empty) {
+      const rows = [];
+      watchSnap.forEach(docSnap => {
+        const w = docSnap.data();
+        rows.push(`<div class="regime-item"><span class="regime-label">${docSnap.id}</span><span class="regime-value">${w.status ?? "-"}</span></div>`);
+      });
+      document.getElementById("watchlistBody").outerHTML = `<div class="regime-grid" id="watchlistBody">${rows.join("")}</div>`;
+    }
+  } catch (err) {
+    console.error("Gagal load dashboard:", err);
+    document.getElementById("lastScan").textContent = "gagal load data";
+  }
+}
+</script>
+</body>
+</html>

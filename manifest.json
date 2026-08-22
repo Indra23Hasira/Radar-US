@@ -1,0 +1,9 @@
+{
+  "name": "US Stock Radar",
+  "short_name": "US Radar",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0B0D0C",
+  "theme_color": "#0B0D0C",
+  "icons": []
+}
