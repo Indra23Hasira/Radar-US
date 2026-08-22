@@ -53,7 +53,7 @@ async function main() {
 
   // ambil market score & sector score hari ini (udah ditulis scan.js)
   const marketDoc = await db.collection("marketRegime").doc(date).get();
-  const marketScore = marketDoc.exists ? marketDoc.data().score : 50;
+  let marketScore = marketDoc.exists ? marketDoc.data().score : 50;
 
   const sectorSnap = await db.collection("sectorScores").doc(date).collection("sectors").get();
   const sectorScoreByEtf = {};
@@ -69,17 +69,41 @@ async function main() {
     const daily = await fetchDaily(stock.ticker);
     const price = lastClose(daily);
     const rs1m = pctReturn(daily, 21);
+    const ma50 = sma(daily, 50);
+    const aboveMa50 = price != null && ma50 != null ? price > ma50 : null;
 
     const priorDaily = daily.slice(0, -1); // exclude hari ini biar avg volume fair
     const vol20 = sma(priorDaily.map(d => ({ close: d.volume })), 20);
     const lastVol = daily.length ? daily[daily.length - 1].volume : null;
     const volRatio = vol20 && lastVol ? lastVol / vol20 : null;
 
-    return { ...stock, price, rs1m, volRatio };
+    return { ...stock, price, rs1m, volRatio, aboveMa50 };
   }, 8, 250);
 
   const validStocks = priceData.filter(s => s && s.rs1m != null);
   console.log(`Berhasil ambil harga: ${validStocks.length}/${universe.length}`);
+
+  // ---------- Upgrade breadth dari proxy (11 sector ETF) ke breadth beneran (% saham individual di atas MA50) ----------
+  const breadthEligible = validStocks.filter(s => s.aboveMa50 !== null);
+  const breadthPct = breadthEligible.length
+    ? Math.round((breadthEligible.filter(s => s.aboveMa50).length / breadthEligible.length) * 100)
+    : null;
+
+  if (marketDoc.exists && breadthPct != null) {
+    const d = marketDoc.data();
+    const spxTrendScoreVal = d.spxTrendScore ?? 55;
+    const nasdaqTrendScoreVal = d.nasdaqTrendScore ?? 55;
+    const vixScoreVal = d.vixScore ?? 50;
+    marketScore = clamp(Math.round((spxTrendScoreVal + nasdaqTrendScoreVal + vixScoreVal + breadthPct) / 4));
+
+    await db.collection("marketRegime").doc(date).set({
+      breadth: `${breadthPct}%`,
+      breadthSource: `S&P 500 (${breadthEligible.length} saham)`,
+      score: marketScore
+    }, { merge: true });
+
+    console.log(`Breadth diupdate ke breadth beneran: ${breadthPct}% dari ${breadthEligible.length} saham. Market score baru: ${marketScore}`);
+  }
 
   // ---------- Layer 4b: rank RS dalam masing-masing sector ----------
   const bySector = {};
