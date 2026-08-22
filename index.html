@@ -27,6 +27,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* penting: tanpa ini, display:flex di .login-screen bakal override attribute hidden */
+[hidden] { display: none !important; }
+
 body {
   background: var(--bg);
   color: var(--text-primary);
@@ -346,7 +349,13 @@ document.getElementById("setPasswordForm").addEventListener("submit", async (e) 
     setTimeout(() => { setPasswordBanner.hidden = true; }, 2500);
   } catch (err) {
     console.error(err);
-    statusEl.textContent = "gagal simpan password";
+    if (err.code === "auth/credential-already-in-use" || err.code === "auth/email-already-in-use") {
+      statusEl.textContent = "email ini udah kepakai di akun password terpisah - kemungkinan bekas testing sebelumnya, cek Authentication > Users di Firebase Console, hapus akun email/password duplikat lalu coba lagi";
+    } else if (err.code === "auth/requires-recent-login") {
+      statusEl.textContent = "sesi login udah lama, keluar dan login Google lagi baru coba set password";
+    } else {
+      statusEl.textContent = `gagal simpan password (${err.code || err.message})`;
+    }
   }
 });
 
