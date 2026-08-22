@@ -118,7 +118,7 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 
 .data-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
 .table-scroll { overflow-x: auto; }
-.table-scroll .data-table { min-width: 560px; }
+.table-scroll .data-table { min-width: 660px; }
 .data-table th {
   text-align: left; font-family: var(--font-sans); font-size: 11px; font-weight: 500;
   color: var(--text-secondary); padding: 6px 8px; border-bottom: 1px solid var(--border);
@@ -272,8 +272,8 @@ footer { text-align: center; color: var(--text-muted); font-size: 11px; font-fam
     </div>
     <div class="table-scroll">
     <table class="data-table" id="stockTable">
-      <thead><tr><th>Ticker</th><th>Phase</th><th>RS 5d</th><th>RS 1m</th><th>Vol</th><th>Insider</th><th>Score</th></tr></thead>
-      <tbody><tr class="empty-row"><td colspan="7">menunggu data scan pertama</td></tr></tbody>
+      <thead><tr><th>Ticker</th><th>Phase</th><th>RS 5d</th><th>RS 1m</th><th>Vol</th><th>Insider</th><th>Earnings</th><th>Score</th></tr></thead>
+      <tbody><tr class="empty-row"><td colspan="8">menunggu data scan pertama</td></tr></tbody>
     </table>
     </div>
   </section>
@@ -459,7 +459,7 @@ async function loadDashboard() {
       stockSnap.forEach(docSnap => {
         const s = docSnap.data();
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td><div class="ticker-cell"><span>${docSnap.id}</span><span class="ticker-name">${s.name ?? ""}${s.name ? " · " : ""}${s.sector ?? ""}</span></div></td><td>${phaseBadgeHTML(s.phase)}</td><td>${s.rs5d ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
+        tr.innerHTML = `<td><div class="ticker-cell"><span>${docSnap.id}</span><span class="ticker-name">${s.name ?? ""}${s.name ? " · " : ""}${s.sector ?? ""}</span></div></td><td>${phaseBadgeHTML(s.phase)}</td><td>${s.rs5d ?? "-"}</td><td>${s.rs ?? "-"}</td><td>${s.volume ?? "-"}</td><td>${s.insider ?? "-"}</td><td>${s.earnings ?? "-"}</td><td>${scoreCellHTML(s.compositeScore)}</td>`;
         tbody.appendChild(tr);
       });
     }
