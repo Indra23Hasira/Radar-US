@@ -588,7 +588,13 @@ function phaseBadgeHTML(phase) {
   return `<span class="phase-badge phase-${key}">${PHASE_LABEL[phase] ?? "-"}</span>`;
 }
 
-function daysSince(dateStr) {
+function dayChangeHTML(changeDay) {
+  if (!changeDay || changeDay === "-") return "";
+  const isUp = changeDay.startsWith("+");
+  const isFlat = changeDay.startsWith("+0.00") || changeDay === "0.00%";
+  const cls = isFlat ? "trend-flat" : isUp ? "trend-up" : "trend-down";
+  return `<span class="${cls}">${changeDay}</span>`;
+}
   if (!dateStr) return null;
   const then = new Date(dateStr);
   const now = new Date();
@@ -723,6 +729,21 @@ function renderBacktestPanel(data) {
     ${phaseRows}`;
 }
 
+function parsePrice(str) {
+  if (!str) return null;
+  const n = parseFloat(String(str).replace(/[^0-9.-]/g, ""));
+  return isNaN(n) ? null : n;
+}
+
+function watchlistReturnHTML(priceAtAdd, currentPrice) {
+  const entryP = parsePrice(priceAtAdd);
+  const nowP = parsePrice(currentPrice);
+  if (entryP == null || nowP == null) return "";
+  const pct = ((nowP - entryP) / entryP) * 100;
+  const cls = pct > 0 ? "trend-up" : pct < 0 ? "trend-down" : "trend-flat";
+  return ` \u2192 ${currentPrice} <span class="${cls}">(${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)</span>`;
+}
+
 function renderWatchlistPanel() {
   const listEl = document.getElementById("watchlistList");
   const tickers = Object.keys(watchlistCache);
@@ -750,7 +771,7 @@ function renderWatchlistPanel() {
           <button class="remove-btn" data-ticker="${ticker}" aria-label="Hapus dari watchlist">&times;</button>
         </div>
         <div class="watchlist-meta">${w.name ?? ""}${w.name ? " \u00b7 " : ""}${w.sector ?? ""}${days !== null ? ` \u00b7 ${days} hari lalu` : ""}</div>
-        ${w.priceAtAdd ? `<div class="watchlist-meta">Harga saat masuk: ${w.priceAtAdd}</div>` : ""}
+        ${w.priceAtAdd ? `<div class="watchlist-meta">Harga saat masuk: ${w.priceAtAdd}${watchlistReturnHTML(w.priceAtAdd, w.currentPrice)}</div>` : ""}
         ${w.entryZone ? `<div class="watchlist-meta">Entry: ${w.entryZone}</div>` : ""}
         ${w.notes ? `<div class="watchlist-notes">${w.notes}</div>` : ""}
       </div>`;
@@ -792,6 +813,17 @@ async function loadDashboard() {
     document.getElementById("lastScan").textContent = `scan terakhir: ${date}`;
 
     await loadWatchlist();
+
+    // ambil harga terkini buat tiap saham di watchlist (walau dia gak lagi di top 20)
+    const watchTickers = Object.keys(watchlistCache);
+    if (watchTickers.length) {
+      const priceSnaps = await Promise.all(
+        watchTickers.map(t => db.collection("stockScores").doc(date).collection("stocks").doc(t).get())
+      );
+      priceSnaps.forEach((snap, i) => {
+        if (snap.exists) watchlistCache[watchTickers[i]].currentPrice = snap.data().price;
+      });
+    }
 
     const regimeSnap = await db.collection("marketRegime").doc(date).get();
     if (regimeSnap.exists) {
@@ -852,7 +884,7 @@ async function loadDashboard() {
             ${phaseBadgeHTML(s.phase)}
             <button class="watch-toggle-btn ${inWatchlist ? "in-watchlist" : ""}" data-ticker="${ticker}" data-name="${escapeAttr(s.name)}" data-sector="${escapeAttr(s.sector)}" data-score="${s.compositeScore ?? ""}" data-price="${escapeAttr(s.price)}" aria-label="Tambah ke watchlist">${inWatchlist ? "\u2713" : "+"}</button>
           </div>
-          <div class="stock-row-name">${s.price ?? ""}${s.price ? " \u00b7 " : ""}${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
+          <div class="stock-row-name">${s.price ?? ""}${s.price ? " " : ""}${dayChangeHTML(s.changeDay)}${s.price ? " \u00b7 " : ""}${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
           <div class="stock-row-bottom">
             <div class="stock-row-metrics">
               <span><span class="metric-label">RS5d</span>${s.rs5d ?? "-"}</span>
