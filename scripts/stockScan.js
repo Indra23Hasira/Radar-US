@@ -81,6 +81,7 @@ async function main() {
     const price = lastClose(daily);
     const rs1m = pctReturn(daily, 21);
     const rs5d = pctReturn(daily, 5);
+    const change1d = pctReturn(daily, 1);
     const ma50 = sma(daily, 50);
     const aboveMa50 = price != null && ma50 != null ? price > ma50 : null;
     const pctAboveMa50 = price != null && ma50 ? ((price - ma50) / ma50) * 100 : null;
@@ -90,7 +91,7 @@ async function main() {
     const lastVol = daily.length ? daily[daily.length - 1].volume : null;
     const volRatio = vol20 && lastVol ? lastVol / vol20 : null;
 
-    return { ...stock, price, rs1m, rs5d, volRatio, aboveMa50, pctAboveMa50 };
+    return { ...stock, price, rs1m, rs5d, change1d, volRatio, aboveMa50, pctAboveMa50 };
   }, 8, 250);
 
   const validStocks = priceData.filter(s => s && s.rs1m != null);
@@ -194,6 +195,7 @@ async function main() {
       sector: s.etf,
       phase,
       price: s.price != null ? `$${s.price.toFixed(2)}` : "-",
+      changeDay: s.change1d != null ? `${s.change1d >= 0 ? "+" : ""}${s.change1d.toFixed(2)}%` : "-",
       rs: `${s.rs1m.toFixed(1)}%`,
       rs5d: s.rs5d != null ? `${s.rs5d.toFixed(1)}%` : "-",
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
@@ -216,6 +218,7 @@ async function main() {
         sector: s.sector,
         phase: s.phase,
         price: s.price,
+        changeDay: s.changeDay,
         rs: s.rs,
         rs5d: s.rs5d,
         volume: s.volume,
