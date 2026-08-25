@@ -264,6 +264,7 @@ a.stock-row-ticker:hover { color: var(--accent); text-decoration: underline; }
 }
 .backtest-phase-row:last-child { border-bottom: none; }
 .backtest-phase-stats { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; }
+.backtest-section-label { font-size: 11px; color: var(--text-muted); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
 
 .modal-overlay {
   position: fixed;
@@ -719,6 +720,23 @@ function renderBacktestPanel(data) {
         </div>`;
     }).join("");
 
+  const bucketOrder = ["80-100", "70-79", "60-69", "<60", "n/a"];
+  const bucketRows = bucketOrder
+    .filter(b => data.byScoreBucket && data.byScoreBucket[b])
+    .map(b => {
+      const stat = data.byScoreBucket[b];
+      const returnClass = stat.avgReturn > 0 ? "trend-up" : stat.avgReturn < 0 ? "trend-down" : "trend-flat";
+      return `
+        <div class="backtest-phase-row">
+          <span>Score ${b}</span>
+          <div class="backtest-phase-stats">
+            <span>n=${stat.count}</span>
+            <span>win ${stat.winRate}%</span>
+            <span class="${returnClass}">${stat.avgReturn > 0 ? "+" : ""}${stat.avgReturn}%</span>
+          </div>
+        </div>`;
+    }).join("");
+
   bodyEl.innerHTML = `
     <div class="backtest-grid">
       <div class="backtest-card">
@@ -730,13 +748,25 @@ function renderBacktestPanel(data) {
         <div class="backtest-card-value">${data.overall.avgReturn > 0 ? "+" : ""}${data.overall.avgReturn}%</div>
       </div>
     </div>
-    ${phaseRows}`;
+    <div class="backtest-section-label">By fase entry</div>
+    ${phaseRows}
+    <div class="backtest-section-label">By rentang composite score</div>
+    ${bucketRows}`;
 }
 
 function parsePrice(str) {
   if (!str) return null;
   const n = parseFloat(String(str).replace(/[^0-9.-]/g, ""));
   return isNaN(n) ? null : n;
+}
+
+function watchlistScoreHTML(scoreAtAdd, currentScore) {
+  if (scoreAtAdd == null) return "";
+  if (currentScore == null) return `Score saat masuk: ${scoreAtAdd}`;
+  const delta = currentScore - scoreAtAdd;
+  const cls = delta > 0 ? "trend-up" : delta < 0 ? "trend-down" : "trend-flat";
+  const arrow = delta > 0 ? "\u25b2" : delta < 0 ? "\u25bc" : "\u00b1";
+  return `Score saat masuk: ${scoreAtAdd} \u2192 sekarang ${currentScore} <span class="${cls}">${arrow}${delta !== 0 ? Math.abs(delta) : ""}</span>`;
 }
 
 function watchlistReturnHTML(priceAtAdd, currentPrice) {
@@ -776,6 +806,7 @@ function renderWatchlistPanel() {
         </div>
         <div class="watchlist-meta">${w.name ?? ""}${w.name ? " \u00b7 " : ""}${w.sector ?? ""}${days !== null ? ` \u00b7 ${days} hari lalu` : ""}</div>
         ${w.priceAtAdd ? `<div class="watchlist-meta">Harga saat masuk: ${w.priceAtAdd}${watchlistReturnHTML(w.priceAtAdd, w.currentPrice)}</div>` : ""}
+        ${w.compositeScoreAtAdd != null ? `<div class="watchlist-meta">${watchlistScoreHTML(w.compositeScoreAtAdd, w.currentScore)}</div>` : ""}
         ${w.entryZone ? `<div class="watchlist-meta">Entry: ${w.entryZone}</div>` : ""}
         ${w.notes ? `<div class="watchlist-notes">${w.notes}</div>` : ""}
       </div>`;
@@ -825,7 +856,10 @@ async function loadDashboard() {
         watchTickers.map(t => db.collection("stockScores").doc(date).collection("stocks").doc(t).get())
       );
       priceSnaps.forEach((snap, i) => {
-        if (snap.exists) watchlistCache[watchTickers[i]].currentPrice = snap.data().price;
+        if (snap.exists) {
+          watchlistCache[watchTickers[i]].currentPrice = snap.data().price;
+          watchlistCache[watchTickers[i]].currentScore = snap.data().compositeScore;
+        }
       });
     }
 
