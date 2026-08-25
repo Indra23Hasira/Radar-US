@@ -52,7 +52,7 @@ Catatan: scan saham (`stockScan.js`) scan ~500 ticker S&P 500 + cek insider fili
 /meta/scanDates                       → { dates: ["2026-08-20", "2026-08-21", ...] } - buat historical tracking
 /marketRegime/{date}                  → { spxTrend, nasdaqTrend, breadth, vix, score }
 /sectorScores/{date}/sectors/{etf}    → { sector, etf, rs1m, rank }
-/stockScores/{date}/stocks/{ticker}   → { sector, rs, volume, insider, compositeScore }
+/stockScores/{date}/stocks/{ticker}   → { sector, price, changeDay, rs, volume, insider, compositeScore }
 /watchlist/{ticker}                   → { addedDate, entryZone, status, notes }
 ```
 
