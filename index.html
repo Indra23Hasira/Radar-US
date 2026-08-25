@@ -888,13 +888,16 @@ async function loadDashboard() {
     const stockSnap = await db.collection("stockScores").doc(date).collection("stocks").orderBy("compositeScore", "desc").limit(20).get();
     if (!stockSnap.empty) {
       // ---------- Historical tracking: bandingin score sekarang vs N scan sebelumnya ----------
+      // idealnya bandingin ke 3 scan lalu, tapi kalau histori belum cukup, pakai scan paling awal yang ada
+      // (jadi badge-nya langsung muncul dari hari ke-2, bukan nunggu sampai hari ke-4)
       let compareDate = null;
       const scanDatesSnap = await db.collection("meta").doc("scanDates").get();
       if (scanDatesSnap.exists) {
         const dates = (scanDatesSnap.data().dates || []).slice().sort();
         const idx = dates.indexOf(date);
-        const compareIdx = idx - TREND_LOOKBACK_SCANS;
-        if (compareIdx >= 0) compareDate = dates[compareIdx];
+        const desiredIdx = idx - TREND_LOOKBACK_SCANS;
+        const compareIdx = desiredIdx >= 0 ? desiredIdx : (idx > 0 ? 0 : -1);
+        if (compareIdx >= 0 && compareIdx < idx) compareDate = dates[compareIdx];
       }
 
       const tickers = stockSnap.docs.map(d => d.id);
