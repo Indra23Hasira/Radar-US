@@ -169,6 +169,8 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .stock-row:last-child { border-bottom: none; }
 .stock-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stock-row-ticker { font-family: var(--font-mono); font-weight: 500; font-size: 14px; }
+a.stock-row-ticker { color: var(--text-primary); text-decoration: none; }
+a.stock-row-ticker:hover { color: var(--accent); text-decoration: underline; }
 .stock-row-name { font-size: 11px; color: var(--text-muted); }
 .stock-row-bottom { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
 .stock-row-metrics {
@@ -764,7 +766,7 @@ function renderWatchlistPanel() {
     return `
       <div class="watchlist-row">
         <div class="watchlist-row-top">
-          <span class="stock-row-ticker">${ticker}</span>
+          <a class="stock-row-ticker" href="https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}" target="_blank" rel="noopener">${ticker}</a>
           <select class="status-select" data-ticker="${ticker}">
             <option value="watching" ${w.status === "watching" ? "selected" : ""}>Watching</option>
             <option value="entered" ${w.status === "entered" ? "selected" : ""}>Entered</option>
@@ -882,7 +884,7 @@ async function loadDashboard() {
         row.className = "stock-row";
         row.innerHTML = `
           <div class="stock-row-top">
-            <span class="stock-row-ticker">${ticker}</span>
+            <a class="stock-row-ticker" href="https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}" target="_blank" rel="noopener">${ticker}</a>
             ${phaseBadgeHTML(s.phase)}
             <button class="watch-toggle-btn ${inWatchlist ? "in-watchlist" : ""}" data-ticker="${ticker}" data-name="${escapeAttr(s.name)}" data-sector="${escapeAttr(s.sector)}" data-score="${s.compositeScore ?? ""}" data-price="${escapeAttr(s.price)}" aria-label="Tambah ke watchlist">${inWatchlist ? "\u2713" : "+"}</button>
           </div>
