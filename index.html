@@ -595,6 +595,8 @@ function dayChangeHTML(changeDay) {
   const cls = isFlat ? "trend-flat" : isUp ? "trend-up" : "trend-down";
   return `<span class="${cls}">${changeDay}</span>`;
 }
+
+function daysSince(dateStr) {
   if (!dateStr) return null;
   const then = new Date(dateStr);
   const now = new Date();
