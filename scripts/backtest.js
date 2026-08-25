@@ -44,6 +44,15 @@ function summarize(list) {
   };
 }
 
+// buat jawab: apakah composite score yang lebih tinggi beneran korelasi sama return yang lebih bagus?
+function scoreBucket(score) {
+  if (score == null) return "n/a";
+  if (score >= 80) return "80-100";
+  if (score >= 70) return "70-79";
+  if (score >= 60) return "60-69";
+  return "<60";
+}
+
 async function main() {
   const dates = await getScanDates();
 
@@ -61,7 +70,7 @@ async function main() {
   const allCandidates = [];
   for (const date of eligibleDates) {
     const stocks = await getTopStocksForDate(date);
-    stocks.forEach(s => allCandidates.push({ date, ticker: s.ticker, phase: s.phase || "n/a" }));
+    stocks.forEach(s => allCandidates.push({ date, ticker: s.ticker, phase: s.phase || "n/a", compositeScore: s.compositeScore }));
   }
   console.log(`Total kandidat: ${allCandidates.length}`);
 
@@ -104,12 +113,22 @@ async function main() {
     console.log(phase, phaseSummary[phase]);
   });
 
+  console.log("\n=== Breakdown by rentang score ===");
+  const byScoreBucket = {};
+  results.forEach(r => { (byScoreBucket[scoreBucket(r.compositeScore)] ||= []).push(r); });
+  const scoreBucketSummary = {};
+  Object.entries(byScoreBucket).forEach(([bucket, list]) => {
+    scoreBucketSummary[bucket] = summarize(list);
+    console.log(bucket, scoreBucketSummary[bucket]);
+  });
+
   await db.collection("backtest").doc("latest").set({
     generatedAt: admin.firestore.FieldValue.serverTimestamp(),
     holdingDays: HOLDING_DAYS,
     dateRange: { from: eligibleDates[0], to: eligibleDates[eligibleDates.length - 1] },
     overall,
     byPhase: phaseSummary,
+    byScoreBucket: scoreBucketSummary,
     sampleSize: results.length
   });
 
