@@ -93,7 +93,7 @@ Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada
 
 ## Backtest
 
-`scripts/backtest.js` ngukur: dari saham-saham yang pernah masuk top 20 di masa lalu, berapa return-nya N hari trading kemudian (default 5 hari), dipecah by fase (Early/Building/Extended/dst). Ini yang jawab pertanyaan "apakah sistem klasifikasi fase kita beneran valid" - kalau Early konsisten menang dibanding Extended, berarti logikanya kerja.
+`scripts/backtest.js` ngukur: dari saham-saham yang pernah masuk top 20 di masa lalu, berapa return-nya N hari trading kemudian (default 5 hari), dipecah dua cara: **by fase** (Early/Building/Extended/dst) dan **by rentang composite score** (80-100, 70-79, 60-69, <60). Breakdown by score ini yang jawab pertanyaan "apakah score yang lebih tinggi beneran korelasi sama return yang lebih bagus" - kalau bucket 80-100 konsisten menang dibanding <60, berarti composite score-nya valid sebagai sinyal.
 
 Jalan **mingguan otomatis** (`.github/workflows/backtest.yml`, tiap Minggu) - gak perlu tiap hari karena butuh histori yang udah "matang" (minimal 5 hari kerja lewat dari tanggal deteksi). Bisa juga trigger manual dari tab Actions. Hasilnya kesimpen di `/backtest/latest` dan muncul di dashboard sebagai panel baru.
 
