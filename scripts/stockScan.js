@@ -39,7 +39,25 @@ function volumeScore(ratio) {
   return 30;
 }
 
-// rank 1 (terbaik) -> skor 100, rank terakhir -> skor 0
+// Klasifikasi akselerasi - RS 5 hari (per hari) dibanding RS 1 bulan (per hari).
+// Biar kelihatan mana yang lagi "gaspol" (fresh momentum) vs "udah capek" (momentum bulan lalu, minggu ini melambat)
+// tanpa perlu itung manual. Ini cuma label info, TIDAK masuk ke composite score.
+function momentumLabel(rs5d, rs1m) {
+  if (rs5d == null || rs1m == null) return "-";
+  if (rs5d < 0) return "Melemah";
+
+  const dailyRs5d = rs5d / 5;
+  const dailyRs1m = rs1m / 21; // ~21 hari trading per bulan
+
+  if (rs1m <= 0.5 || dailyRs1m <= 0) return "Baru mulai"; // belum ada tren bulanan buat dibandingin
+
+  const ratio = dailyRs5d / dailyRs1m;
+  if (ratio >= 1.5) return "Akselerasi kuat";
+  if (ratio >= 1.1) return "Akselerasi";
+  if (ratio >= 0.7) return "Stabil";
+  if (ratio >= 0.3) return "Melambat";
+  return "Melambat tajam";
+}
 function rankToScore(rank, total) {
   if (total <= 1) return 100;
   return Math.round(100 - ((rank - 1) * 100) / (total - 1));
@@ -196,6 +214,7 @@ async function main() {
       phase,
       price: s.price != null ? `$${s.price.toFixed(2)}` : "-",
       changeDay: s.change1d != null ? `${s.change1d >= 0 ? "+" : ""}${s.change1d.toFixed(2)}%` : "-",
+      momentum: momentumLabel(s.rs5d, s.rs1m),
       rs: `${s.rs1m.toFixed(1)}%`,
       rs5d: s.rs5d != null ? `${s.rs5d.toFixed(1)}%` : "-",
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
@@ -219,6 +238,7 @@ async function main() {
         phase: s.phase,
         price: s.price,
         changeDay: s.changeDay,
+        momentum: s.momentum,
         rs: s.rs,
         rs5d: s.rs5d,
         volume: s.volume,
