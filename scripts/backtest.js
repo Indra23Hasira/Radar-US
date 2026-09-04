@@ -8,8 +8,9 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-const HOLDING_DAYS = 5; // hari trading maju - ukur return N hari setelah saham kedeteksi
-const TOP_N = 20;       // kandidat = saham yang muncul di top 20 hari itu (sama kayak yang ditampilin dashboard)
+const HOLDING_DAYS = 5;   // hari trading maju - ukur return N hari setelah saham kedeteksi
+const SAFETY_BUFFER = 2;  // ekstra hari kalender - jaga-jaga weekend/libur biar data harga forward-nya beneran udah ada di Yahoo pas backtest jalan
+const TOP_N = 20;         // kandidat = saham yang muncul di top 20 hari itu (sama kayak yang ditampilin dashboard)
 
 async function getScanDates() {
   const doc = await db.collection("meta").doc("scanDates").get();
@@ -58,7 +59,7 @@ async function main() {
 
   // butuh tanggal yang udah "matang" - minimal HOLDING_DAYS hari kerja udah lewat dari tanggal itu,
   // biar ada data harga buat ngukur returnnya
-  const eligibleDates = dates.slice(0, Math.max(0, dates.length - HOLDING_DAYS));
+  const eligibleDates = dates.slice(0, Math.max(0, dates.length - HOLDING_DAYS - SAFETY_BUFFER));
   if (eligibleDates.length === 0) {
     console.log(`Belum cukup histori buat backtest - butuh minimal ${HOLDING_DAYS} scan hari kerja yang udah "matang". Coba lagi beberapa hari ke depan.`);
     return;
@@ -91,16 +92,18 @@ async function main() {
 
   // hitung return tiap kandidat
   const results = [];
+  let fetchFailCount = 0;
+  let noForwardDataCount = 0;
   for (const c of allCandidates) {
     const daily = priceCache[c.ticker];
-    if (!daily) continue;
+    if (!daily) { fetchFailCount++; continue; }
     const entryPrice = findCloseAtOrAfter(daily, c.date, 0);
     const exitPrice = findCloseAtOrAfter(daily, c.date, HOLDING_DAYS);
-    if (entryPrice == null || exitPrice == null) continue;
+    if (entryPrice == null || exitPrice == null) { noForwardDataCount++; continue; }
     const returnPct = ((exitPrice - entryPrice) / entryPrice) * 100;
     results.push({ ...c, returnPct });
   }
-  console.log(`Berhasil dihitung returnnya: ${results.length}/${allCandidates.length}`);
+  console.log(`Berhasil dihitung returnnya: ${results.length}/${allCandidates.length} (gagal fetch: ${fetchFailCount}, data forward belum ada: ${noForwardDataCount})`);
 
   const overall = summarize(results);
   console.log("\n=== Ringkasan keseluruhan ===", overall);
