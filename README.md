@@ -58,6 +58,18 @@ Catatan: scan saham (`stockScan.js`) scan ~500 ticker S&P 500 + cek insider fili
 
 Universe: S&P 500, sumber dari dataset publik `datasets/s-and-p-500-companies` di GitHub.
 
+## Label akselerasi momentum
+
+Selain Phase (Early/Building/Extended), tiap saham juga dikasih label akselerasi - bandingin kecepatan RS 5 hari (per hari) vs RS 1 bulan (per hari):
+
+- **Akselerasi kuat / Akselerasi** - momentum minggu ini lebih cepat dari rata-rata bulan lalu, lagi "gaspol"
+- **Baru mulai** - belum ada tren bulanan yang jelas, tapi minggu ini udah mulai gerak
+- **Stabil** - kecepatannya konsisten
+- **Melambat / Melambat tajam** - momentum bulan lalu udah kejadian, minggu ini mulai capek
+- **Melemah** - RS 5 hari udah negatif
+
+Ini **cuma label informasi** (gak masuk ke composite score) - dipakai buat nyaring manual dari kandidat yang udah lolos ranking, bukan buat ubah urutan/saham mana yang muncul. Cara pakai: dari top saham di ranking, prioritasin cek manual yang badge-nya "Akselerasi" ketimbang "Melambat" - itu biasanya yang momentumnya lebih fresh, bukan yang udah lama jalan.
+
 ## Cara kerja composite score
 
 ```
