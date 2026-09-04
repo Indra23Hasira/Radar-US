@@ -777,6 +777,14 @@ function renderBacktestPanel(data) {
         <div class="backtest-card-label">Avg return (${data.holdingDays}d)</div>
         <div class="backtest-card-value">${data.overall.avgReturn > 0 ? "+" : ""}${data.overall.avgReturn}%</div>
       </div>
+      <div class="backtest-card">
+        <div class="backtest-card-label">Baseline SPY (${data.holdingDays}d)</div>
+        <div class="backtest-card-value">${data.baseline != null ? `${data.baseline > 0 ? "+" : ""}${data.baseline}%` : "-"}</div>
+      </div>
+      <div class="backtest-card">
+        <div class="backtest-card-label">Edge (radar vs market)</div>
+        <div class="backtest-card-value ${data.edge > 0 ? "trend-up" : data.edge < 0 ? "trend-down" : ""}">${data.edge != null ? `${data.edge > 0 ? "+" : ""}${data.edge}%` : "-"}</div>
+      </div>
     </div>
     <div class="backtest-section-label">By fase entry</div>
     ${phaseRows}
