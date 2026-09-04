@@ -158,6 +158,21 @@ main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: flex; flex
 .phase-extended { background: rgba(248, 113, 113, 0.15); color: var(--down); }
 .phase-belowMa50, .phase-na { background: var(--panel-alt); color: var(--text-muted); }
 
+.momentum-badge {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.accel-strong { background: rgba(52, 211, 153, 0.2); color: var(--up); }
+.accel-up { background: rgba(52, 211, 153, 0.12); color: var(--up); }
+.accel-new { background: rgba(45, 212, 191, 0.15); color: var(--accent); }
+.accel-flat { background: var(--panel-alt); color: var(--text-secondary); }
+.accel-slow { background: rgba(251, 191, 36, 0.12); color: var(--watch); }
+.accel-down { background: rgba(248, 113, 113, 0.15); color: var(--down); }
+
 .stock-list { display: flex; flex-direction: column; }
 .stock-row {
   padding: 10px 0;
@@ -599,6 +614,21 @@ function dayChangeHTML(changeDay) {
   return `<span class="${cls}">${changeDay}</span>`;
 }
 
+const MOMENTUM_CLASS = {
+  "Akselerasi kuat": "accel-strong",
+  "Akselerasi": "accel-up",
+  "Baru mulai": "accel-new",
+  "Stabil": "accel-flat",
+  "Melambat": "accel-slow",
+  "Melambat tajam": "accel-down",
+  "Melemah": "accel-down"
+};
+function momentumBadgeHTML(label) {
+  if (!label || label === "-") return "";
+  const cls = MOMENTUM_CLASS[label] || "accel-flat";
+  return `<span class="momentum-badge ${cls}">${label}</span>`;
+}
+
 function daysSince(dateStr) {
   if (!dateStr) return null;
   const then = new Date(dateStr);
@@ -923,6 +953,7 @@ async function loadDashboard() {
           <div class="stock-row-top">
             <a class="stock-row-ticker" href="https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}" target="_blank" rel="noopener">${ticker}</a>
             ${phaseBadgeHTML(s.phase)}
+            ${momentumBadgeHTML(s.momentum)}
             <button class="watch-toggle-btn ${inWatchlist ? "in-watchlist" : ""}" data-ticker="${ticker}" data-name="${escapeAttr(s.name)}" data-sector="${escapeAttr(s.sector)}" data-score="${s.compositeScore ?? ""}" data-price="${escapeAttr(s.price)}" aria-label="Tambah ke watchlist">${inWatchlist ? "\u2713" : "+"}</button>
           </div>
           <div class="stock-row-name">${s.price ?? ""}${s.price ? " " : ""}${dayChangeHTML(s.changeDay)}${s.price ? " \u00b7 " : ""}${s.name ?? ""}${s.name ? " \u00b7 " : ""}${s.sector ?? ""}</div>
