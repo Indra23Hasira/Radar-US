@@ -75,6 +75,29 @@ async function main() {
   }
   console.log(`Total kandidat: ${allCandidates.length}`);
 
+  // ---------- Baseline: return SPY di periode & holding period yang sama ----------
+  // tanpa ini kita gak bisa tau apakah return radar itu beneran "bagus" atau cuma ngikut market lagi naik/turun
+  let spyDaily = null;
+  try {
+    spyDaily = await fetchDaily("SPY", "2y");
+  } catch (err) {
+    console.error("Gagal ambil baseline SPY:", err.message);
+  }
+  const baselineReturns = [];
+  if (spyDaily) {
+    for (const date of eligibleDates) {
+      const entryPrice = findCloseAtOrAfter(spyDaily, date, 0);
+      const exitPrice = findCloseAtOrAfter(spyDaily, date, HOLDING_DAYS);
+      if (entryPrice != null && exitPrice != null) {
+        baselineReturns.push(((exitPrice - entryPrice) / entryPrice) * 100);
+      }
+    }
+  }
+  const baseline = baselineReturns.length
+    ? Number((baselineReturns.reduce((a, b) => a + b, 0) / baselineReturns.length).toFixed(2))
+    : null;
+  console.log(`Baseline SPY (avg return ${HOLDING_DAYS}d): ${baseline}%`);
+
   // fetch harga historis per ticker unik (1x per ticker aja, bukan per tanggal - lebih hemat request)
   const uniqueTickers = [...new Set(allCandidates.map(c => c.ticker))];
   const priceCache = {};
@@ -106,7 +129,8 @@ async function main() {
   console.log(`Berhasil dihitung returnnya: ${results.length}/${allCandidates.length} (gagal fetch: ${fetchFailCount}, data forward belum ada: ${noForwardDataCount})`);
 
   const overall = summarize(results);
-  console.log("\n=== Ringkasan keseluruhan ===", overall);
+  const edge = overall && baseline != null ? Number((overall.avgReturn - baseline).toFixed(2)) : null;
+  console.log("\n=== Ringkasan keseluruhan ===", overall, `| baseline SPY: ${baseline}% | edge: ${edge}%`);
 
   const byPhase = {};
   results.forEach(r => { (byPhase[r.phase] ||= []).push(r); });
@@ -130,6 +154,8 @@ async function main() {
     holdingDays: HOLDING_DAYS,
     dateRange: { from: eligibleDates[0], to: eligibleDates[eligibleDates.length - 1] },
     overall,
+    baseline,
+    edge,
     byPhase: phaseSummary,
     byScoreBucket: scoreBucketSummary,
     sampleSize: results.length
