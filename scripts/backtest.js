@@ -67,13 +67,38 @@ async function main() {
 
   console.log(`Backtest ${eligibleDates.length} tanggal (${eligibleDates[0]} s/d ${eligibleDates[eligibleDates.length - 1]}), holding period ${HOLDING_DAYS} hari trading...`);
 
-  // kumpulin semua kandidat per tanggal
+  // kumpulin semua kandidat per tanggal - TAPI cuma hitung hari PERTAMA saham itu masuk top 20.
+  // kalau dia masih bertahan di top 20 keesokan harinya, itu BUKAN sample baru/independen -
+  // itu saham yang sama, cuma diukur ulang di titik waktu yang tumpang tindih sama pengukuran sebelumnya.
+  // (prinsip yang sama kayak dipakai di Radar IDX/BTC: sample dihitung dari titik "match pertama", bukan tiap hari dia masih match)
   const allCandidates = [];
-  for (const date of eligibleDates) {
-    const stocks = await getTopStocksForDate(date);
-    stocks.forEach(s => allCandidates.push({ date, ticker: s.ticker, phase: s.phase || "n/a", compositeScore: s.compositeScore }));
+  let skippedRepeat = 0;
+  const topStocksCache = new Map();
+  async function getTopStocksCached(date) {
+    if (!topStocksCache.has(date)) topStocksCache.set(date, await getTopStocksForDate(date));
+    return topStocksCache.get(date);
   }
-  console.log(`Total kandidat: ${allCandidates.length}`);
+
+  for (const date of eligibleDates) {
+    const idx = dates.indexOf(date);
+    const prevDate = idx > 0 ? dates[idx - 1] : null;
+
+    const stocks = await getTopStocksCached(date);
+    let prevTickers = new Set();
+    if (prevDate) {
+      const prevStocks = await getTopStocksCached(prevDate);
+      prevTickers = new Set(prevStocks.map(s => s.ticker));
+    }
+
+    stocks.forEach(s => {
+      if (prevTickers.has(s.ticker)) {
+        skippedRepeat++;
+        return; // udah dihitung waktu dia pertama kali muncul - skip biar gak dobel
+      }
+      allCandidates.push({ date, ticker: s.ticker, phase: s.phase || "n/a", compositeScore: s.compositeScore });
+    });
+  }
+  console.log(`Total kandidat (first-appearance aja): ${allCandidates.length} (${skippedRepeat} dilewatin karena udah bertahan dari hari sebelumnya)`);
 
   // ---------- Baseline: return SPY di periode & holding period yang sama ----------
   // tanpa ini kita gak bisa tau apakah return radar itu beneran "bagus" atau cuma ngikut market lagi naik/turun
