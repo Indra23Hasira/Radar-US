@@ -109,6 +109,8 @@ Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada
 
 **Baseline & edge:** setiap run juga ngitung return SPY (S&P 500) di periode & holding period yang sama, dan `edge = avgReturn radar - baseline SPY`. Ini penting - tanpa baseline, avg return negatif belum tentu berarti radar-nya jelek, bisa aja market secara umum lagi turun lebih dalam. `edge` positif berarti radar beneran ngasih hasil lebih baik dari sekadar pegang index pasar; `edge` negatif berarti belum ada bukti radar-nya lebih baik dari market.
 
+**Sampling discipline:** satu (ticker, tanggal) cuma dihitung sebagai kandidat kalau itu **hari pertama** saham itu masuk top 20 - kalau dia masih bertahan di top 20 besoknya, itu TIDAK dihitung sebagai sample baru. Tanpa ini, satu saham yang nangkring di top 20 selama 10 hari berturut-turut bakal ke-hitung 10x, bikin n kelihatan besar padahal itu bukan 10 taruhan independen - cuma 1 saham yang diukur berkali-kali di jendela waktu yang tumpang tindih. Prinsip ini konsisten sama yang dipakai di Radar IDX/BTC.
+
 Jalan **mingguan otomatis** (`.github/workflows/backtest.yml`, tiap Minggu) - gak perlu tiap hari karena butuh histori yang udah "matang" (minimal 5 hari kerja lewat dari tanggal deteksi). Bisa juga trigger manual dari tab Actions. Hasilnya kesimpen di `/backtest/latest` dan muncul di dashboard sebagai panel baru.
 
 Butuh histori scan minimal beberapa hari dulu sebelum ada hasil - kalau dijalanin pas data masih baru, dia cuma kasih pesan "belum cukup histori", itu normal.
