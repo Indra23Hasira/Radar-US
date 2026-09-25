@@ -46,11 +46,18 @@ function summarize(list) {
 }
 
 // buat jawab: apakah composite score yang lebih tinggi beneran korelasi sama return yang lebih bagus?
+// resolusi diperhalus (dari cuma 4 rentang jadi 8) biar kelihatan persisnya di skor berapa
+// edge itu mulai muncul - bukan cuma "70-79 jelek, 80+ (jarang banget) bagus"
+const BUCKET_ORDER = ["<60", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-100", "n/a"];
 function scoreBucket(score) {
   if (score == null) return "n/a";
-  if (score >= 80) return "80-100";
-  if (score >= 70) return "70-79";
-  if (score >= 60) return "60-69";
+  if (score >= 90) return "90-100";
+  if (score >= 85) return "85-89";
+  if (score >= 80) return "80-84";
+  if (score >= 75) return "75-79";
+  if (score >= 70) return "70-74";
+  if (score >= 65) return "65-69";
+  if (score >= 60) return "60-64";
   return "<60";
 }
 
@@ -165,12 +172,20 @@ async function main() {
     console.log(phase, phaseSummary[phase]);
   });
 
-  console.log("\n=== Breakdown by rentang score ===");
+  console.log("\n=== Breakdown by rentang score (resolusi halus) ===");
   const byScoreBucket = {};
   results.forEach(r => { (byScoreBucket[scoreBucket(r.compositeScore)] ||= []).push(r); });
   const scoreBucketSummary = {};
-  Object.entries(byScoreBucket).forEach(([bucket, list]) => {
-    scoreBucketSummary[bucket] = summarize(list);
+  // urutkan sesuai BUCKET_ORDER (bukan urutan insersi object) biar konsisten dari minggu ke minggu,
+  // dan tetep tulis edge per bucket vs baseline SPY biar langsung kebaca bucket mana yang beneran ngalahin market
+  BUCKET_ORDER.forEach(bucket => {
+    const list = byScoreBucket[bucket];
+    if (!list) return; // skip bucket yang emang belum ada sample-nya minggu ini
+    const s = summarize(list);
+    scoreBucketSummary[bucket] = {
+      ...s,
+      edge: baseline != null ? Number((s.avgReturn - baseline).toFixed(2)) : null
+    };
     console.log(bucket, scoreBucketSummary[bucket]);
   });
 
@@ -183,6 +198,7 @@ async function main() {
     edge,
     byPhase: phaseSummary,
     byScoreBucket: scoreBucketSummary,
+    bucketOrder: BUCKET_ORDER,
     sampleSize: results.length
   });
 
