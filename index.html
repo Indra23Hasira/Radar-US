@@ -750,19 +750,22 @@ function renderBacktestPanel(data) {
         </div>`;
     }).join("");
 
-  const bucketOrder = ["80-100", "70-79", "60-69", "<60", "n/a"];
+  // resolusi halus (8 rentang) - pakai urutan yang dikirim backtest.js kalau ada, biar dashboard
+  // otomatis ngikut kalau suatu saat rentangnya diubah lagi tanpa perlu edit dua tempat
+  const bucketOrder = data.bucketOrder || ["<60", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-100", "n/a"];
   const bucketRows = bucketOrder
     .filter(b => data.byScoreBucket && data.byScoreBucket[b])
     .map(b => {
       const stat = data.byScoreBucket[b];
       const returnClass = stat.avgReturn > 0 ? "trend-up" : stat.avgReturn < 0 ? "trend-down" : "trend-flat";
+      const edgeStr = stat.edge != null ? ` <span class="${stat.edge > 0 ? "trend-up" : stat.edge < 0 ? "trend-down" : "trend-flat"}">(edge ${stat.edge > 0 ? "+" : ""}${stat.edge}%)</span>` : "";
       return `
         <div class="backtest-phase-row">
           <span>Score ${b}</span>
           <div class="backtest-phase-stats">
             <span>n=${stat.count}</span>
             <span>win ${stat.winRate}%</span>
-            <span class="${returnClass}">${stat.avgReturn > 0 ? "+" : ""}${stat.avgReturn}%</span>
+            <span class="${returnClass}">${stat.avgReturn > 0 ? "+" : ""}${stat.avgReturn}%${edgeStr}</span>
           </div>
         </div>`;
     }).join("");
