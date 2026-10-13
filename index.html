@@ -294,6 +294,7 @@ a.stock-row-ticker:hover { color: var(--accent); text-decoration: underline; }
 .bt-factor { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .bt-factor-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; margin-bottom: 6px; flex-wrap: wrap; }
 .bt-factor-spread { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+.bt-factor-n { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-left: 4px; }
 .bt-q-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .bt-q { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 6px; padding: 5px 4px; text-align: center; }
 .bt-q-label { font-size: 10px; color: var(--text-muted); }
@@ -853,13 +854,18 @@ function renderUniverseSection(u, universeSize) {
     return `<div class="backtest-section-label">Uji komponen · seluruh saham</div>
       <div class="bt-hint">belum ada periode yang data harganya lengkap buat holding period ini</div>`;
   }
-  const factorLabel = { composite: "Composite score", rs5d: "RS 5 hari", rs1m: "RS 1 bulan", volume: "Volume vs rata-rata" };
+  const factorLabel = {
+    composite: "Composite score", sector: "Skor sektor", industry: "Skor industri",
+    rs5d: "RS 5 hari", rs1m: "RS 1 bulan", volume: "Volume vs rata-rata",
+    earnings: "Skor earnings / revisi"
+  };
   const thin = u.periods < 4;
 
   const factorRows = Object.keys(factorLabel).filter(f => u.factors?.[f]).map(f => {
     const spread = u.spreads?.[f];
+    const fPeriods = u.factorPeriods?.[f] ?? u.periods;
     let verdict = "";
-    if (!thin && spread != null) {
+    if (fPeriods >= 4 && spread != null) {
       verdict = spread >= 0.3 ? "searah" : spread <= -0.3 ? "terbalik" : "datar";
     }
     const cells = u.factors[f].map(q => `
@@ -870,7 +876,7 @@ function renderUniverseSection(u, universeSize) {
     return `
       <div class="bt-factor">
         <div class="bt-factor-head">
-          <span>${factorLabel[f]}</span>
+          <span>${factorLabel[f]} <span class="bt-factor-n">n=${u.factors[f].reduce((a, q) => a + (q.count || 0), 0)}${fPeriods < u.periods ? ` · ${fPeriods} periode` : ""}</span></span>
           <span class="bt-factor-spread">Q5−Q1 <span class="${pctClass(spread)}">${fmtPct(spread)}</span>${verdict ? ` · ${verdict}` : ""}</span>
         </div>
         <div class="bt-q-grid">${cells}</div>
