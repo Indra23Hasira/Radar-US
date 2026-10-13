@@ -134,3 +134,14 @@ Universe diambil dari daftar saham di scan terakhir. Harga diambil 1x per ticker
 Jalan **mingguan otomatis** (`.github/workflows/backtest.yml`, tiap Minggu), atau trigger manual dari tab Actions. Kalau di-trigger pas jam bursa US, bar hari itu dibuang otomatis karena belum final.
 
 **Catatan soal modul earnings:** endpoint `quoteSummary` yang dipakai (`scripts/lib/earnings.js`) kadang lebih ketat aksesnya dibanding endpoint harga (`chart`) yang dipakai modul lain. Kalau abis run pertama kolom "Earnings" kosong ("-") buat SEMUA saham (bukan cuma sebagian), kemungkinan Yahoo minta autentikasi tambahan buat endpoint ini - cek log run di GitHub Actions buat pastiin. Kalau itu kejadian, skor-nya otomatis fallback ke netral (50) jadi gak bikin scan lain ikut gagal, tapi berarti perlu dicari sumber data alternatif.
+
+## Perbaikan data insider & earnings (Okt 2026)
+
+Backtest v2 nunjukin 100% saham kebaca "tidak ada" insider DAN "tidak ada data" earnings sejak awal. Artinya 45% dari stock signal (insider 25% + earnings 20%) selama ini konstan 50 buat semua saham. Penyebabnya dua bug:
+
+- **Insider:** di daftar submissions SEC, dokumen Form 4 tercatat sebagai `xslF345X06/form4.xml`, yang isinya versi HTML hasil render dan gak ada tag `<transactionCode>`. Sekarang prefix `xsl.../` dibuang biar yang diambil XML mentahnya. Ditambah cek `issuerCik`: Form 4 di mana perusahaan itu jadi *pembeli* saham emiten lain (contoh Berkshire) gak dihitung lagi sebagai insider trading perusahaan itu sendiri.
+- **Earnings:** endpoint `quoteSummary` Yahoo wajib cookie + crumb, tanpa itu balikin 401. Sekarang `earnings.js` bikin sesi kayak browser (cookie dari `fc.yahoo.com`, crumb dari `/v1/test/getcrumb`), dipakai ulang sepanjang run, dan otomatis diperbarui kalau kedaluwarsa.
+
+Tiap scan sekarang nge-log jumlah saham yang punya data insider & earnings (cek di log GitHub Actions step "Run stock-level scan"). Kalau earnings `0 berhasil`, berarti cara crumb-nya diblokir lagi.
+
+`stockScan.js` juga nyimpen field `components` (skor 0-100 per lapisan: market, sector, industry, rs5d, rs1m, volume, insider, earnings) di tiap saham. Dengan ini backtest bisa nguji lapisan sektor, industri, dan earnings, bukan cuma komponen yang bisa diturunin dari teks. Lapisan yang datanya baru ada di scan terbaru otomatis punya periode lebih sedikit; dashboard nampilin jumlah periodenya, dan label searah/terbalik baru muncul setelah ≥4 periode.
