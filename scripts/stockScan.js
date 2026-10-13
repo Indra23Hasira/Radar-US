@@ -2,7 +2,7 @@ import admin from "firebase-admin";
 import { fetchDaily, sma, lastClose, pctReturn, clamp } from "./lib/yahoo.js";
 import { fetchSp500 } from "./lib/sp500.js";
 import { getInsiderSignal } from "./lib/secEdgar.js";
-import { getEarningsSignal } from "./lib/earnings.js";
+import { getEarningsSignal, getEarningsStats } from "./lib/earnings.js";
 
 // ---------- Firebase Admin init ----------
 if (!admin.apps.length) {
@@ -184,6 +184,13 @@ async function main() {
     return { ...s, earningsLabel: earnings.label, earningsScore: earnings.score };
   }, 8, 200);
 
+  // cek kesehatan data - dua komponen ini dulu sempat mati total tanpa ketahuan
+  const insiderActive = withInsider.filter(s => s && s.insiderLabel !== "-").length;
+  const es = getEarningsStats();
+  console.log(`Insider: ${insiderActive}/${withInsider.length} saham ada transaksi beli/jual 10 hari terakhir`);
+  console.log(`Earnings: ${es.ok} berhasil, ${es.fail} gagal`);
+  if (es.ok === 0) console.error("PERINGATAN: data earnings gagal semua - skor earnings jadi netral 50 untuk semua saham");
+
   // ---------- Composite score ----------
   console.log("Hitung composite score...");
   const finalStocks = withEarnings.filter(Boolean).map(s => {
@@ -220,6 +227,17 @@ async function main() {
       volume: s.volRatio != null ? `${s.volRatio.toFixed(1)}x` : "-",
       insider: s.insiderLabel,
       earnings: s.earningsLabel,
+      // skor 0-100 tiap lapisan, disimpen biar backtest bisa nguji lapisan mana yang beneran prediktif
+      components: {
+        market: marketScore,
+        sector: sectorScore,
+        industry: s.industryScore ?? 50,
+        rs5d: s.rs5dScoreInSector ?? 50,
+        rs1m: s.rs1mScoreInSector ?? 50,
+        volume: volScore,
+        insider: s.insiderScore,
+        earnings: s.earningsScore
+      },
       compositeScore
     };
   });
@@ -244,6 +262,7 @@ async function main() {
         volume: s.volume,
         insider: s.insider,
         earnings: s.earnings,
+        components: s.components,
         compositeScore: s.compositeScore
       });
     });
