@@ -100,21 +100,37 @@ Urutan tabel di dashboard **murni by composite score** (persis kayak sebelum ada
 - [x] Earnings/revision momentum (EPS surprise + revisi analis 30 hari, Yahoo Finance quoteSummary)
 - [x] Watchlist & episode tracking di UI (klik "+" di stock ranking, isi entry zone/catatan, status watching/entered/closed)
 - [x] Historical tracking (badge trend score vs 3 scan sebelumnya, di /meta/scanDates)
-- [x] Backtest (win rate & avg return per fase, holding period 5 hari trading, jalan mingguan)
+- [x] Backtest v2 (entry open H+1, hold 5/10/20 hari, pembanding SPY + rata-rata 500 saham, uji komponen per kuintil, jalan mingguan)
 - [ ] Notifikasi harian (belum - kandidat: Telegram bot, paling gampang setup-nya)
 
-## Backtest
+## Backtest (v2)
 
-`scripts/backtest.js` ngukur: dari saham-saham yang pernah masuk top 20 di masa lalu, berapa return-nya N hari trading kemudian (default 5 hari), dipecah dua cara: **by fase** (Early/Building/Extended/dst) dan **by rentang composite score**. Breakdown by score ini yang jawab pertanyaan "apakah score yang lebih tinggi beneran korelasi sama return yang lebih bagus" - kalau bucket score tinggi konsisten menang dibanding bucket rendah, berarti composite score-nya valid sebagai sinyal.
+`scripts/backtest.js` jawab dua pertanyaan:
 
-**Resolusi bucket score (diperhalus):** awalnya cuma 4 rentang kasar (80-100, 70-79, 60-69, <60). Setelah beberapa minggu jalan, ketahuan rentang 70-79 itu isinya jauh lebih banyak sample dibanding bucket lain, dan bucket 80-100 nyaris gak pernah kena (kadang n=2-3 doang), jadi gak kelihatan di skor berapa persisnya edge mulai muncul. Dipecah jadi 8 rentang lebih sempit: `<60`, `60-64`, `65-69`, `70-74`, `75-79`, `80-84`, `85-89`, `90-100`. Tiap bucket sekarang juga nyimpen `edge`-nya sendiri (avg return bucket itu dikurangi baseline SPY), jadi langsung kebaca bucket mana yang beneran ngalahin market, bukan cuma menang/kalah di dalam kelompoknya sendiri. Urutan bucket dikirim balik dari `backtest.js` sebagai field `bucketOrder` di `/backtest/latest`, dan dashboard (`renderBacktestPanel` di index.html) ngikutin urutan itu otomatis.
+1. **Kalau beli top 20 radar, hasilnya lebih bagus dari market gak?**
+2. **Komponen skor mana yang beneran memprediksi return, dan mana yang malah merusak?**
 
-**Baseline & edge:** setiap run juga ngitung return SPY (S&P 500) di periode & holding period yang sama, dan `edge = avgReturn radar - baseline SPY`. Ini penting - tanpa baseline, avg return negatif belum tentu berarti radar-nya jelek, bisa aja market secara umum lagi turun lebih dalam. `edge` positif berarti radar beneran ngasih hasil lebih baik dari sekadar pegang index pasar; `edge` negatif berarti belum ada bukti radar-nya lebih baik dari market.
+**Aturan entry/exit:** beli di harga **open hari trading setelah scan** (scan jalan setelah market tutup, jadi paling cepat eksekusi besoknya), jual di **close hari ke-N** sejak entry. Diukur di tiga holding period sekaligus: **5, 10, 20 hari trading**. Dashboard punya tombol buat pindah horizon.
 
-**Sampling discipline:** satu (ticker, tanggal) cuma dihitung sebagai kandidat kalau itu **hari pertama** saham itu masuk top 20 - kalau dia masih bertahan di top 20 besoknya, itu TIDAK dihitung sebagai sample baru. Tanpa ini, satu saham yang nangkring di top 20 selama 10 hari berturut-turut bakal ke-hitung 10x, bikin n kelihatan besar padahal itu bukan 10 taruhan independen - cuma 1 saham yang diukur berkali-kali di jendela waktu yang tumpang tindih. Prinsip ini konsisten sama yang dipakai di Radar IDX/BTC.
+**Dua pembanding:**
+- **SPY**: index S&P 500, dibobot market cap. Kalau pasar lagi ditarik segelintir mega-cap (breadth rendah), rata-rata saham biasa bakal kalah dari SPY walaupun radarnya gak salah apa-apa.
+- **Rata-rata semua saham S&P 500 yang di-scan** (bobot sama): ini pembanding utama. Edge vs rata-rata saham = "apakah ranking radar lebih bagus daripada asal comot saham dari universe yang sama?"
 
-Jalan **mingguan otomatis** (`.github/workflows/backtest.yml`, tiap Minggu) - gak perlu tiap hari karena butuh histori yang udah "matang" (minimal 5 hari kerja lewat dari tanggal deteksi). Bisa juga trigger manual dari tab Actions. Hasilnya kesimpen di `/backtest/latest` dan muncul di dashboard sebagai panel baru.
+Edge dihitung per kandidat terhadap pembanding di tanggal yang sama, lalu dirata-rata (matched), bukan rata-rata kandidat dikurangi rata-rata baseline yang tanggalnya beda-beda.
 
-Butuh histori scan minimal beberapa hari dulu sebelum ada hasil - kalau dijalanin pas data masih baru, dia cuma kasih pesan "belum cukup histori", itu normal.
+**Top 20, sampling discipline:** satu saham cuma dihitung di hari **pertama** dia masuk top 20. Kalau besoknya masih bertahan di top 20, itu bukan sample baru, cuma saham yang sama diukur ulang di jendela waktu yang tumpang tindih. Prinsip sama kayak Radar IDX/BTC. Breakdown by fase dan by rentang composite score (8 rentang: `<60`, `60-64`, ..., `90-100`) tetap ada, per horizon.
+
+**Uji komponen di seluruh universe (~500 saham):** di tiap tanggal yang diuji, semua saham dibagi 5 kelompok (kuintil) menurut nilai komponennya: composite score, RS 5 hari, RS 1 bulan, volume vs rata-rata. Q1 = 20% terendah, Q5 = 20% tertinggi. Yang diukur: return tiap saham **dikurangi rata-rata semua saham di tanggal itu** (excess return). Kuintil dihitung per tanggal, baru digabung.
+- `Q5−Q1` positif ("searah") = makin tinggi komponennya, makin bagus return-nya → komponen itu layak dipertahankan/diberi bobot lebih.
+- `Q5−Q1` negatif ("terbalik") = komponen itu malah memilih saham yang bakal kalah → bobotnya harus diturunkan atau logikanya dibalik.
+- Juga ditampilkan: excess return per fase, per kategori insider (beli/jual/campur/tidak ada), dan per status data earnings (ada/tidak ada). Kalau "tidak ada data" earnings mendominasi, artinya endpoint earnings sering gagal dan komponen itu praktis netral di skor.
+
+Tanggal buat uji komponen dibikin **gak tumpang tindih**: jaraknya minimal sepanjang holding period, mulai dari tanggal terbaru mundur ke belakang. Jadi tiap periode = sample independen. Konsekuensinya horizon 20 hari baru punya sedikit periode di awal; dashboard nampilin peringatan kalau periodenya masih di bawah 4 dan label "searah/terbalik" disembunyikan sampai cukup.
+
+Universe diambil dari daftar saham di scan terakhir. Harga diambil 1x per ticker (~500 request ke Yahoo, sama kayak scan harian). Firestore read per run sekitar 5.000 dokumen, masih jauh di bawah kuota gratis harian (50.000).
+
+**Format `/backtest/latest` (v2):** `version: 2`, `horizons`, `results["5"|"10"|"20"] = { top20, byPhase, byScoreBucket, universe: { periods, periodDates, sampleSize, factors, spreads, byPhase, byScoreBucket, insider, earnings } }`. Field lama (`overall`, `baseline`, `edge`, `byPhase`, `byScoreBucket` untuk 5 hari vs SPY) tetap ditulis, jadi index.html versi lama masih bisa nampilin sesuatu. index.html baru otomatis pakai tampilan lama kalau dokumennya masih format v1.
+
+Jalan **mingguan otomatis** (`.github/workflows/backtest.yml`, tiap Minggu), atau trigger manual dari tab Actions. Kalau di-trigger pas jam bursa US, bar hari itu dibuang otomatis karena belum final.
 
 **Catatan soal modul earnings:** endpoint `quoteSummary` yang dipakai (`scripts/lib/earnings.js`) kadang lebih ketat aksesnya dibanding endpoint harga (`chart`) yang dipakai modul lain. Kalau abis run pertama kolom "Earnings" kosong ("-") buat SEMUA saham (bukan cuma sebagian), kemungkinan Yahoo minta autentikasi tambahan buat endpoint ini - cek log run di GitHub Actions buat pastiin. Kalau itu kejadian, skor-nya otomatis fallback ke netral (50) jadi gak bikin scan lain ikut gagal, tapi berarti perlu dicari sumber data alternatif.
