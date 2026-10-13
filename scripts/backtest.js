@@ -275,15 +275,23 @@ async function main() {
     }
     periodDates.reverse();
 
+    const num = v => (typeof v === "number" && isFinite(v) ? v : null);
     const factorDefs = {
-      composite: s => (typeof s.compositeScore === "number" ? s.compositeScore : null),
+      composite: s => num(s.compositeScore),
       rs5d: s => parseNum(s.rs5d),
       rs1m: s => parseNum(s.rs),
-      volume: s => parseNum(s.volume)
+      volume: s => parseNum(s.volume),
+      // skor per lapisan - cuma ada di scan setelah stockScan.js nyimpen field "components"
+      sector: s => num(s.components?.sector),
+      industry: s => num(s.components?.industry),
+      earnings: s => num(s.components?.earnings)
+      // insider sengaja gak dibagi kuintil: hampir semua saham skornya 50 (gak ada transaksi),
+      // jadi dianalisis per kategori (beli/jual/campur/tidak ada) di bawah
     };
     const quintileBuckets = {};
     Object.keys(factorDefs).forEach(f => { quintileBuckets[f] = Array.from({ length: QUINTILES }, () => []); });
     const uRows = [];
+    const factorPeriods = {}; // berapa periode yang punya data buat tiap komponen (komponen baru punya lebih sedikit)
 
     for (const d of periodDates) {
       const all = await getAllStocks(d);
@@ -308,6 +316,7 @@ async function main() {
           .map(r => ({ v: getter(r.s), excess: r.excess }))
           .filter(x => x.v != null)
           .sort((a, b) => a.v - b.v);
+        if (valid.length) factorPeriods[f] = (factorPeriods[f] || 0) + 1;
         valid.forEach((x, i) => {
           const q = Math.min(QUINTILES - 1, Math.floor((i * QUINTILES) / valid.length));
           quintileBuckets[f][q].push(x);
@@ -318,6 +327,7 @@ async function main() {
     const factors = {};
     const spreads = {};
     Object.entries(quintileBuckets).forEach(([f, qs]) => {
+      if (qs.every(list => list.length === 0)) return; // komponen ini belum ada datanya di periode yang diuji
       factors[f] = qs.map((list, i) => ({ q: i + 1, ...(summarizeExcess(list) || { count: 0, avgExcess: null, beatRate: null }) }));
       const q1 = factors[f][0].avgExcess, q5 = factors[f][QUINTILES - 1].avgExcess;
       spreads[f] = q1 != null && q5 != null ? round2(q5 - q1) : null;
@@ -336,6 +346,7 @@ async function main() {
       periodDates,
       sampleSize: uRows.length,
       factors,
+      factorPeriods,
       spreads,
       byPhase: groupExcess(r => r.phase),
       byScoreBucket: groupExcess(r => r.bucket),
