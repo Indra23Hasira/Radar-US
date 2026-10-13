@@ -280,6 +280,30 @@ a.stock-row-ticker:hover { color: var(--accent); text-decoration: underline; }
 .backtest-phase-row:last-child { border-bottom: none; }
 .backtest-phase-stats { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; }
 .backtest-section-label { font-size: 11px; color: var(--text-muted); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.bt-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.bt-tab {
+  background: transparent; border: 1px solid var(--border); color: var(--text-secondary);
+  font-family: var(--font-mono); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+}
+.bt-tab:hover { color: var(--text-primary); }
+.bt-tab.active { border-color: var(--accent); color: var(--accent); }
+.bt-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bt-card-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: var(--font-mono); }
+.bt-hint { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 4px 0 8px; }
+.bt-warn { color: var(--watch); display: block; margin-top: 4px; }
+.bt-factor { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.bt-factor-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; margin-bottom: 6px; flex-wrap: wrap; }
+.bt-factor-spread { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+.bt-q-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.bt-q { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 6px; padding: 5px 4px; text-align: center; }
+.bt-q-label { font-size: 10px; color: var(--text-muted); }
+.bt-q-val { font-family: var(--font-mono); font-size: 12px; }
+.bt-cat-title { font-size: 12px; color: var(--text-secondary); margin: 12px 0 0; }
+@media (max-width: 520px) {
+  .backtest-phase-row { flex-wrap: wrap; gap: 4px; }
+  .backtest-phase-stats { flex-wrap: wrap; gap: 8px; }
+  .bt-q-val { font-size: 11px; }
+}
 
 .modal-overlay {
   position: fixed;
@@ -719,7 +743,169 @@ document.getElementById("watchlistSaveBtn").addEventListener("click", async () =
   }
 });
 
+// ---------- Backtest v2 ----------
+let backtestData = null;
+let backtestHorizon = null;
+
+const fmtPct = v => (v == null ? "-" : `${v > 0 ? "+" : ""}${v}%`);
+const pctClass = v => (v == null ? "" : v > 0 ? "trend-up" : v < 0 ? "trend-down" : "trend-flat");
+const PHASE_ORDER = ["early", "building", "extended", "belowMa50", "n/a"];
+const BT_PHASE_LABEL = { early: "Early", building: "Building", extended: "Extended", belowMa50: "Below MA50", "n/a": "Lainnya" };
+
 function renderBacktestPanel(data) {
+  backtestData = data;
+  const bodyEl = document.getElementById("backtestBody");
+  const metaEl = document.getElementById("backtestMeta");
+
+  if (!data || (!data.results && !data.overall)) {
+    metaEl.textContent = "belum ada data";
+    bodyEl.innerHTML = `<div class="watchlist-empty">belum ada hasil backtest - jalan tiap Minggu otomatis, atau trigger manual</div>`;
+    return;
+  }
+  if (!data.results) { renderBacktestLegacy(data); return; }
+
+  const horizons = (data.horizons || [5, 10, 20]).map(String);
+  if (!backtestHorizon || !horizons.includes(backtestHorizon)) backtestHorizon = String(data.primaryHorizon || horizons[0]);
+  const r = data.results[backtestHorizon] || {};
+  const t = r.top20;
+
+  metaEl.textContent = `${data.dateRange?.from ?? "?"} s/d ${data.dateRange?.to ?? "?"}`;
+
+  const tabs = horizons.map(h => `<button class="bt-tab${h === backtestHorizon ? " active" : ""}" data-h="${h}">Hold ${h} hari</button>`).join("");
+
+  const cards = t ? `
+    <div class="backtest-grid">
+      <div class="backtest-card">
+        <div class="backtest-card-label">Avg return top ${data.topN || 20}</div>
+        <div class="backtest-card-value ${pctClass(t.avgReturn)}">${fmtPct(t.avgReturn)}</div>
+        <div class="bt-card-sub">n=${t.count} · win ${t.winRate}%</div>
+      </div>
+      <div class="backtest-card">
+        <div class="backtest-card-label">Rata-rata ${data.universeSize || 500} saham</div>
+        <div class="backtest-card-value">${fmtPct(t.universe)}</div>
+        <div class="bt-card-sub">SPY ${fmtPct(t.spy)}</div>
+      </div>
+      <div class="backtest-card">
+        <div class="backtest-card-label">Edge vs rata-rata saham</div>
+        <div class="backtest-card-value ${pctClass(t.edgeUniverse)}">${fmtPct(t.edgeUniverse)}</div>
+        <div class="bt-card-sub">${t.beatUniverseRate ?? "-"}% kandidat ngalahin rata-rata</div>
+      </div>
+      <div class="backtest-card">
+        <div class="backtest-card-label">Edge vs SPY</div>
+        <div class="backtest-card-value ${pctClass(t.edgeSpy)}">${fmtPct(t.edgeSpy)}</div>
+        <div class="bt-card-sub">index, bobot market cap</div>
+      </div>
+    </div>` : `<div class="watchlist-empty">belum ada kandidat dengan data harga ${backtestHorizon} hari ke depan</div>`;
+
+  const horizonRows = horizons.map(h => {
+    const x = data.results[h]?.top20;
+    if (!x) return `<div class="backtest-phase-row"><span>Hold ${h} hari</span><div class="backtest-phase-stats"><span>belum ada data</span></div></div>`;
+    return `
+      <div class="backtest-phase-row">
+        <span>Hold ${h} hari</span>
+        <div class="backtest-phase-stats">
+          <span>n=${x.count}</span>
+          <span class="${pctClass(x.avgReturn)}">${fmtPct(x.avgReturn)}</span>
+          <span>vs saham <span class="${pctClass(x.edgeUniverse)}">${fmtPct(x.edgeUniverse)}</span></span>
+          <span>vs SPY <span class="${pctClass(x.edgeSpy)}">${fmtPct(x.edgeSpy)}</span></span>
+        </div>
+      </div>`;
+  }).join("");
+
+  const statRow = (label, s) => `
+    <div class="backtest-phase-row">
+      <span>${label}</span>
+      <div class="backtest-phase-stats">
+        <span>n=${s.count}</span>
+        <span>win ${s.winRate}%</span>
+        <span class="${pctClass(s.avgReturn)}">${fmtPct(s.avgReturn)}</span>
+        <span>vs saham <span class="${pctClass(s.edgeUniverse)}">${fmtPct(s.edgeUniverse)}</span></span>
+      </div>
+    </div>`;
+
+  const phaseRows = PHASE_ORDER.filter(p => r.byPhase?.[p]).map(p => statRow(BT_PHASE_LABEL[p], r.byPhase[p])).join("");
+  const bucketOrder = data.bucketOrder || ["<60", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-100", "n/a"];
+  const bucketRows = bucketOrder.filter(b => r.byScoreBucket?.[b]).map(b => statRow(`Score ${b}`, r.byScoreBucket[b])).join("");
+
+  bodyEl.innerHTML = `
+    <div class="bt-tabs">${tabs}</div>
+    <div class="bt-hint">Entry dihitung di harga open hari trading setelah scan, exit di close hari ke-${backtestHorizon}.</div>
+    ${cards}
+    <div class="backtest-section-label">Top ${data.topN || 20} per holding period</div>
+    ${horizonRows}
+    <div class="backtest-section-label">By fase entry · ${backtestHorizon} hari</div>
+    ${phaseRows || `<div class="bt-hint">belum ada data</div>`}
+    <div class="backtest-section-label">By rentang composite score · ${backtestHorizon} hari</div>
+    ${bucketRows || `<div class="bt-hint">belum ada data</div>`}
+    ${renderUniverseSection(r.universe, data.universeSize)}`;
+
+  bodyEl.querySelectorAll(".bt-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      backtestHorizon = btn.dataset.h;
+      renderBacktestPanel(backtestData);
+    });
+  });
+}
+
+// uji komponen di seluruh universe: komponen mana yang beneran memprediksi return?
+function renderUniverseSection(u, universeSize) {
+  if (!u || !u.periods) {
+    return `<div class="backtest-section-label">Uji komponen · seluruh saham</div>
+      <div class="bt-hint">belum ada periode yang data harganya lengkap buat holding period ini</div>`;
+  }
+  const factorLabel = { composite: "Composite score", rs5d: "RS 5 hari", rs1m: "RS 1 bulan", volume: "Volume vs rata-rata" };
+  const thin = u.periods < 4;
+
+  const factorRows = Object.keys(factorLabel).filter(f => u.factors?.[f]).map(f => {
+    const spread = u.spreads?.[f];
+    let verdict = "";
+    if (!thin && spread != null) {
+      verdict = spread >= 0.3 ? "searah" : spread <= -0.3 ? "terbalik" : "datar";
+    }
+    const cells = u.factors[f].map(q => `
+      <div class="bt-q">
+        <div class="bt-q-label">Q${q.q}</div>
+        <div class="bt-q-val ${pctClass(q.avgExcess)}">${fmtPct(q.avgExcess)}</div>
+      </div>`).join("");
+    return `
+      <div class="bt-factor">
+        <div class="bt-factor-head">
+          <span>${factorLabel[f]}</span>
+          <span class="bt-factor-spread">Q5−Q1 <span class="${pctClass(spread)}">${fmtPct(spread)}</span>${verdict ? ` · ${verdict}` : ""}</span>
+        </div>
+        <div class="bt-q-grid">${cells}</div>
+      </div>`;
+  }).join("");
+
+  const catRows = (title, obj, order) => {
+    const keys = (order || Object.keys(obj || {})).filter(k => obj?.[k]);
+    if (!keys.length) return "";
+    return `<div class="bt-cat-title">${title}</div>` + keys.map(k => `
+      <div class="backtest-phase-row">
+        <span>${BT_PHASE_LABEL[k] && title === "Fase" ? BT_PHASE_LABEL[k] : k}</span>
+        <div class="backtest-phase-stats">
+          <span>n=${obj[k].count}</span>
+          <span class="${pctClass(obj[k].avgExcess)}">${fmtPct(obj[k].avgExcess)}</span>
+        </div>
+      </div>`).join("");
+  };
+
+  return `
+    <div class="backtest-section-label">Uji komponen · seluruh ${universeSize || 500} saham</div>
+    <div class="bt-hint">
+      ${u.periods} periode independen · ${u.sampleSize} sample. Tiap tanggal, saham dibagi 5 kelompok menurut komponennya
+      (Q1 = 20% terendah, Q5 = 20% tertinggi). Angka = rata-rata return di atas/bawah rata-rata semua saham.
+      "Searah" berarti makin tinggi komponennya makin bagus; "terbalik" berarti komponen itu malah merusak skor.
+      ${thin ? `<span class="bt-warn">Periodenya masih di bawah 4, angka di bawah belum bisa disimpulkan.</span>` : ""}
+    </div>
+    ${factorRows}
+    ${catRows("Fase", u.byPhase, PHASE_ORDER)}
+    ${catRows("Insider (SEC Form 4)", u.insider, ["beli", "campur", "jual", "tidak ada", "lainnya"])}
+    ${catRows("Earnings / revisi analis", u.earnings, ["ada data", "tidak ada data"])}`;
+}
+
+// tampilan lama (backtest v1) - dipakai cuma kalau /backtest/latest masih format lama
+function renderBacktestLegacy(data) {
   const bodyEl = document.getElementById("backtestBody");
   const metaEl = document.getElementById("backtestMeta");
 
