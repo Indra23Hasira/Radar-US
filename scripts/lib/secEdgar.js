@@ -16,7 +16,12 @@ async function fetchSubmissions(cik) {
 
 async function fetchOwnershipXml(cikNumeric, accessionNumber, primaryDocument) {
   const acc = accessionNumber.replace(/-/g, "");
-  const url = `https://www.sec.gov/Archives/edgar/data/${Number(cikNumeric)}/${acc}/${primaryDocument}`;
+  // PENTING: di daftar submissions, primaryDocument Form 4 bentuknya "xslF345X06/form4.xml" -
+  // itu versi HTML yang udah di-render (buat dibaca manusia), isinya GAK ada tag <transactionCode>.
+  // XML mentahnya ada di path yang sama tanpa prefix "xsl.../". Bug ini bikin semua saham
+  // kebaca "gak ada aktivitas insider" sejak awal.
+  const rawDoc = primaryDocument.replace(/^xsl[^/]+\//, "");
+  const url = `https://www.sec.gov/Archives/edgar/data/${Number(cikNumeric)}/${acc}/${rawDoc}`;
   const res = await fetch(url, { headers: { "User-Agent": SEC_USER_AGENT } });
   if (!res.ok) return null;
   return res.text();
@@ -59,6 +64,10 @@ export async function getInsiderSignal(cik) {
   for (const i of form4Indices) {
     const xml = await fetchOwnershipXml(submissions.cik, recent.accessionNumber[i], recent.primaryDocument[i]);
     if (!xml) continue;
+    // daftar submissions juga berisi Form 4 di mana perusahaan ini jadi PEMBELI saham perusahaan lain
+    // (contoh: Berkshire beli saham emiten lain). Itu bukan insider trading saham perusahaan ini - skip.
+    const issuerCik = xml.match(/<issuerCik>\s*0*(\d+)\s*<\/issuerCik>/)?.[1];
+    if (!issuerCik || Number(issuerCik) !== Number(submissions.cik)) continue;
     const { buys, sells } = parseTransactions(xml);
     totalBuys += buys;
     totalSells += sells;
